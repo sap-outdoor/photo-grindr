@@ -2,6 +2,9 @@
 // Local-only language selection. Never reload: pending Undo request IDs stay in memory.
 const PhotoI18n = (() => {
   const messages = {
+  "How it works": "Jak to funguje",
+  "Selected": "Vybrané",
+  "Rejected": "Zamítnuté",
   "Photo Grindr · The shared photo desk": "Photo Grindr · Společný výběr fotek",
   "Photo Grindr home": "Photo Grindr – domů",
   "Main navigation": "Hlavní navigace",

@@ -1,6 +1,61 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { gesture, nextPosition, pendingPosition } = require('./app.js');
+test('home and gallery cannot vote or Undo, including keyboard U; review U retries unresolved request', async () => {
+ const browser=undoBrowser({review:true}); await browser.settle();
+ const key=()=>browser.events.keydown({key:'u',target:{tagName:'BODY'},preventDefault(){}});
+ key(); await browser.settle();
+ assert.equal(browser.calls.some(c=>c.path==='/api/undo'),false);
+ await browser.click('resume'); await browser.click('nav-explore');
+ const before=browser.calls.length;
+ key(); await browser.click('like'); await browser.click('dislike'); await browser.settle();
+ assert.equal(browser.calls.length,before);
+ assert.equal(browser.element('undo').disabled,true);
+ await browser.click('nav-operate'); await browser.click('resume');
+ key(); await browser.settle(); key(); await browser.settle();
+ const undos=browser.calls.filter(c=>c.path==='/api/undo');
+ assert.equal(undos.length,2); assert.deepEqual(undos[0].body,undos[1].body);
+ const template=require('node:fs').readFileSync(require('node:path').join(__dirname,'..','templates','index.html'),'utf8');
+ assert.doesNotMatch(template,/id="gallery-undo"/);
+});
+test('decisions use compact live status, not routine success banners; bulk actions appear only with selection', async () => {
+ const browser=undoBrowser({review:true,loseResponse:false}); await browser.settle(); await browser.click('resume');
+ await browser.click('like');
+ assert.equal(browser.element('notice').hidden,true);
+ assert.match(browser.element('saved-state').textContent,/uloženo/i);
+ await browser.click('nav-explore');
+ assert.equal(browser.element('bulk-actions').hidden,true);
+ await browser.click('select-page'); assert.equal(browser.element('bulk-actions').hidden,false);
+ await browser.click('select-page'); assert.equal(browser.element('bulk-actions').hidden,true);
+});
+test('workspace is controls-first with collapsed bilingual help, modest PIN/gallery and one CSV action', () => {
+ const fs=require('node:fs'),path=require('node:path');
+ const html=fs.readFileSync(path.join(__dirname,'..','templates','index.html'),'utf8');
+ const entry=fs.readFileSync(path.join(__dirname,'..','templates','enter.html'),'utf8');
+ assert.match(html,/<details class="how-card">\s*<summary>\{\{ "How it works" if lang == 'en' else "Jak to funguje"/);
+ assert.doesNotMatch(html,/<details[^>]*\bopen\b/);
+ assert.match(html,/Like Tinder: swipe right/);
+ assert.doesNotMatch(html,/edition-mark|class="eyebrow"|class="section-label"/);
+ assert.ok(html.indexOf('id="package-options"')<html.indexOf('class="counts-grid"'));
+ assert.equal((html.match(/href="\/export.csv"/g)||[]).length,1);
+ assert.match(html,/"Selected" if lang == 'en' else "Vybrané"/);
+ assert.match(html,/"Rejected" if lang == 'en' else "Zamítnuté"/);
+ assert.doesNotMatch(entry,/A good shot|class="eyebrow"|entry-copy/);
+ for(const id of ['review-home','undo','like','dislike','select-page','return-selected']) assert.match(html,new RegExp(`id="${id}"`));
+ assert.match(html,/id="saved-state"[^>]*aria-live="polite"/);
+ assert.match(html,/_footer.html/); assert.match(entry,/_footer.html/);
+ const css=fs.readFileSync(require.resolve('./style.css'),'utf8');
+ assert.match(css,/grid-template-rows:[^}]*minmax\(0,1fr\)/);
+ assert.match(css,/summary:focus-visible/);
+});
+test('literal photo paths stay available as tooltips without repeated gallery path rows', async () => {
+ const browser=undoBrowser({review:true,loseResponse:false}); await browser.settle(); await browser.click('resume');
+ assert.equal(browser.element('photo-path').title,'1.jpg');
+ await browser.click('nav-explore');
+ const label=browser.element('gallery-grid').children[0].children[0];
+ assert.equal(label.children[2].title,'Like');
+ assert.equal(label.children[3].className,'gallery-path');
+});
 test('pending navigation preserves server indices, normalizes decided positions and restores undone items', () => {
  const items = [{decision:'liked'},{decision:null},{decision:'disliked'},{decision:null}];
  assert.equal(pendingPosition(items,0),1);
@@ -88,7 +143,7 @@ test('Undo retries the same committed request after a lost response, blocking in
  await browser.click('like');
  await browser.click('nav-explore');
  assert.deepEqual(browser.calls.map(call=>call.path),['/api/state','/api/undo']);
- await browser.click('gallery-undo');
+ await browser.click('undo');
  const undos = browser.calls.filter(call=>call.path==='/api/undo');
  assert.deepEqual(undos[1].body,undos[0].body);
  assert.equal(browser.answered(),1);

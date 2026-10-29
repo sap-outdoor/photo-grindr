@@ -40,7 +40,9 @@ The shared PIN is only a casual gate. It is verified server-side; entry and sele
 
 - Default UI language is Czech; switch CS/EN live using the header button. Language choice persists without changing filenames, players, package state, or decisions.
 - Choose/create a player; select 50, 100, or 250 photos, or resume active work.
-- Decision mode shows only unanswered photos and a prominent remaining count. Arrows skip answered items; Undo brings the restored unanswered photo back. Liked/disliked galleries remain available separately.
+- Decision mode shows only unanswered photos and a prominent remaining count. Arrows skip answered items; Undo brings the restored unanswered photo back. Like/Dislike and Undo/U only operate in decision mode, not home/gallery.
+- Home puts package/player actions first. Instructions including the Tinder comparison are in collapsed Jak to funguje / How it works help.
+- Gallery filters are Vybrané / Zamítnuté (Selected / Rejected). CSV export is in the gallery. Bulk controls appear when selecting photos; the general gallery Undo was removed. See UX_CLEANUP.md for verified geometry and scope.
 - L / Like / right swipe records liked; D / Dislike / left swipe records disliked.
 - Arrow keys, Previous/Next, and edge clicks navigate without votes. U / Undo reverses the latest eligible action.
 - After 10 minutes without a player operation, unanswered assignments expire; saved judgments stay saved. Returning users receive a package-expired notice and can request fresh work.
@@ -59,7 +61,7 @@ node --check static/app.js
 uv pip check --python .venv/Scripts/python.exe
 ```
 
-Observed after expiry/Explore recovery and footer changes: 24 backend tests passed; 22 frontend/interaction tests passed; syntax checks passed for app.js and i18n.js; installed dependencies compatible. Tests use generated fixtures and isolated databases, not event decisions.
+Observed after expiry/Explore recovery and footer changes: 24 backend tests passed; 26 frontend/interaction tests passed after UX cleanup; syntax checks passed for app.js and i18n.js; installed dependencies compatible. Tests use generated fixtures and isolated databases, not event decisions.
 
 Parent Chromium check on the running localhost server verified wrong/correct PIN flow; denied direct API, preview, and CSV access before entry; actual total 1,682; a real JPEG preview returned successfully; 390px mobile viewport without horizontal overflow; no page JavaScript errors. These parent checks did not create player identities or cast votes in event data.
 

@@ -115,8 +115,7 @@ if (typeof document !== 'undefined') document.addEventListener('DOMContentLoaded
     for (const id of ['like','dislike']) $(id).disabled = busy || !valid;
     $('previous').disabled = busy || !valid || pendingPosition(pkg.items, pkg.position, -1) === pkg.position;
     $('next').disabled = busy || !valid || pendingPosition(pkg.items, pkg.position, 1) === pkg.position;
-    $('undo').disabled = busy || !state?.player;
-    $('gallery-undo').disabled = busy || !state?.player;
+    $('undo').disabled = busy || !state?.player || view !== 'review';
     $('gallery-prev').disabled = busy || !!pendingUndo || galleryPage <= 1;
     $('gallery-next').disabled = busy || !!pendingUndo || galleryPage >= galleryPages;
   }
@@ -137,7 +136,7 @@ if (typeof document !== 'undefined') document.addEventListener('DOMContentLoaded
       renderControls(); return;
     }
     PhotoI18n.raw($('filename'),item.filename); $('filename').title = item.relative_path;
-    PhotoI18n.raw($('photo-path'),item.relative_path);
+    PhotoI18n.raw($('photo-path'),item.relative_path); $('photo-path').title = item.relative_path;
     text('saved-state', 'Awaiting your decision');
     $('saved-state').className = `save-state ${item.decision || ''}`;
     $('photo-error').hidden = true;
@@ -153,12 +152,12 @@ if (typeof document !== 'undefined') document.addEventListener('DOMContentLoaded
     await run(async () => { const data = await api('/api/navigate', {package_id:pkg.id,position}); pkg = data.package; renderReview(); });
   }
   async function decide(value) {
-    if (!current()) return;
+    if (view !== 'review' || !current()) return;
     await run(async () => {
       const item = current();
       const data = await api('/api/decision',{package_id:pkg.id,photo_id:item.id,value,version:item.version,request_id:crypto.randomUUID()});
       pkg = data.package; renderReview();
-      notice(data.complete ? 'Package complete. Every decision is saved.' : 'Decision saved.', 'success');
+      text('saved-state', 'Decision saved.');
     });
   }
   async function undo() {
@@ -205,7 +204,7 @@ if (typeof document !== 'undefined') document.addEventListener('DOMContentLoaded
       image.addEventListener('error', () => { PhotoI18n.bind(image,'Preview unavailable: {filename}',{filename:item.filename},'alt'); card.classList.add('unavailable'); });
       const check=document.createElement('input'); check.type='checkbox'; PhotoI18n.bind(check,'Select {path}',{path:item.relative_path},'aria-label');
       check.addEventListener('change', () => run(async () => { await api('/api/activity',{}); if(check.checked) selection.set(item.id,item.version); else selection.delete(item.id); updateSelection(); }));
-      const title=document.createElement('strong'); title.textContent=item.filename;
+      const title=document.createElement('strong'); title.textContent=item.filename; title.title=item.relative_path;
       const path=document.createElement('span'); path.className='gallery-path'; path.textContent=item.relative_path;
       const actor=document.createElement('span'); actor.className='muted'; PhotoI18n.bind(actor,item.judged_by ? 'Reviewed by {name}' : 'Shared decision',{name:typeof item.judged_by === 'object' ? item.judged_by?.username : item.judged_by});
       label.append(image,check,title,path,actor);
@@ -215,7 +214,7 @@ if (typeof document !== 'undefined') document.addEventListener('DOMContentLoaded
     updateSelection();
     $('gallery-prev').disabled=galleryPage<=1; $('gallery-next').disabled=galleryPage>=galleryPages;
   }
-  function updateSelection() { text('selected-count', '{count} selected', {count:selection.size}); $('return-selected').disabled=busy || !selection.size; }
+  function updateSelection() { $('bulk-actions').hidden = selection.size === 0; text('selected-count', '{count} selected', {count:selection.size}); $('return-selected').disabled=busy || !selection.size; }
   async function explore(status=galleryStatus, page=1) {
     await run(async () => {
       if (!state?.player) { show('home'); $('identity-form').hidden=false; $('username').focus(); notice('Choose a player before exploring so returns can be attributed.'); return; }
@@ -251,7 +250,7 @@ if (typeof document !== 'undefined') document.addEventListener('DOMContentLoaded
   $('select-page').addEventListener('click', () => run(async () => { await api('/api/activity',{}); const select=selection.size!==galleryItems.length; selection.clear(); if(select) for(const item of galleryItems) selection.set(item.id,item.version); document.querySelectorAll('.gallery-select input').forEach(input=>{input.checked=select;}); updateSelection(); }));
   $('like').addEventListener('click', () => decide('liked')); $('dislike').addEventListener('click', () => decide('disliked'));
   $('previous').addEventListener('click', () => navigate(-1)); $('next').addEventListener('click', () => navigate(1));
-  $('undo').addEventListener('click',undo); $('gallery-undo').addEventListener('click',undo);
+  $('undo').addEventListener('click',undo);
   $('photo').addEventListener('error', () => { $('photo-error').hidden=false; });
   $('retry-photo').addEventListener('click', () => { if(current()) { $('photo-error').hidden=true; $('photo').src=current().preview_url; } });
   const stage=$('photo-stage');
@@ -266,7 +265,7 @@ if (typeof document !== 'undefined') document.addEventListener('DOMContentLoaded
   document.addEventListener('keydown', event => {
     if(busy || event.repeat || $('return-confirm').open || event.altKey || event.ctrlKey || event.metaKey || /INPUT|TEXTAREA|SELECT|BUTTON|A/.test(event.target.tagName) || event.target.isContentEditable) return;
     const key=event.key.toLowerCase();
-    if(key==='u' && state?.player) { event.preventDefault(); undo(); }
+    if(view==='review' && key==='u' && state?.player) { event.preventDefault(); undo(); }
     else if(view==='review' && ['l','d','arrowleft','arrowright'].includes(key)) { event.preventDefault(); if(key==='l'||key==='d') decide(key==='l'?'liked':'disliked'); else navigate(key==='arrowright'?1:-1); }
   });
   run(async () => { await refresh(); if(!state.player) await searchPlayers(); });
