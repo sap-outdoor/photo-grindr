@@ -1,88 +1,92 @@
 # Product requirements
 
-Status: proposal pending discussion.
+Status: planning only. Confirmed requirements and proposed defaults below are distinct; application implementation awaits approval.
 
-## Confirmed request
+## Confirmed requirements
 
-- Browser-based application for approximately 1,600 sports-event photos, approximately 1.5 GB, already stored on the server.
-- Enter player name / username on the home screen.
-- Choose a package size, including 50, 100, or 250 photos.
-- Review one photo at a time with left/right swipes, similar to a dating-app card interface.
-- Click the left/right sides of the image to go to the previous/next image.
-- Provide undo.
-- Persist liked and disliked decisions in a database.
-- Return home after a package, choose another, inspect liked photos, and download a CSV of liked filenames.
-- Initialize Git, document the project in Markdown, and agree the plan before full implementation.
+- Web app for approximately 1,600 server-local sports photos (approximately 1.5 GB).
+- Shared workload: players divide a common library, rather than each reviewing every photo independently.
+- Show known players. Username input autocompletes existing players and suggests similar names to avoid duplicate identities.
+- Choose review packages of 50, 100, or 250 photos.
+- Review one photo at a time; swipe left/right for dislike/like; click image sides for previous/next navigation; provide undo.
+- Persist decisions in a database; return home to select another package, review selections, and export liked filenames as CSV.
+- Other players can inspect both liked and disliked photos and send them back for judgment: checks and balances.
+- Document in Markdown and agree the plan before full development.
 
-## Proposed MVP behavior
+## Proposed identity behavior
 
-### Identity and home
+- Home offers a known-player list and searchable username field; explicitly selecting a suggestion resumes that identity.
+- Compare exact usernames after trimming and case-insensitive normalization; preserve display spelling.
+- Before creating a new identity, show likely similar existing names with a prompt such as "Did you mean this player?"
+- Never silently merge similar names or switch identity based on fuzzy matches.
+- Exact normalized matches reuse the existing identity, not a duplicate. Enforce uniqueness server-side, including concurrent requests.
+- Show the active player prominently with an explicit switch-player control.
+- Known-player selection is not authentication. Choose trusted private access or PIN/access-link/login protection before deployment.
 
-- Display name and unique username are separate concepts; username identifies the review owner.
-- Trim usernames and compare them case-insensitively; keep their display spelling.
-- Show counts for unseen, liked, and disliked photos, plus unfinished-package progress.
-- Offer package sizes 50 / 100 / 250, resume unfinished package, liked gallery, and CSV export.
-- Allow a final package smaller than the requested size when fewer photos remain.
-- When no unseen photos remain, show completion rather than an empty package.
+## Proposed shared allocation
 
-### Package allocation
+- Home shows shared awaiting-judgment, assigned/in-progress, liked, and disliked counts, plus personal package progress.
+- A photo's current review round has at most one active assignment. Allocate transactionally to avoid duplicate work.
+- Persist package membership/order; default to one unfinished package per player and resume it first.
+- Permit smaller final packages and distinguish an empty queue from work reserved by others.
+- Prioritize returned photos, then untouched photos; use stable filename order within each group.
+- Leaving early preserves progress. Provide explicit release of unanswered assignments; automatic reservation expiry remains undecided.
 
-- Each player reviews independently: different players can receive the same photo.
-- A new package contains only that player's unreviewed photos not already in an unfinished package.
-- Use stable filename order initially; random order is an optional alternative.
-- Persist package membership and order; refreshing or returning later does not reshuffle it.
-- Default to one unfinished package per player and resume it before creating another.
-- Mark completion only when every photo in the package has a decision, not merely when the last photo is visited.
-- Permit return home early without losing progress.
+## Proposed checks-and-balances workflow
 
-### Review interactions
+- Each photo has a shared current outcome: pending, liked, or disliked; assignment status is separate.
+- Record the deciding player, review round, and history for each judgment.
+- Shared liked and disliked galleries both offer Send back for review, individually or for a selected set; optional reason proposed.
+- Returning a photo starts a new pending review round, rather than directly flipping the old verdict. Preserve all earlier judgments.
+- Proposed default: pending re-review photos leave the current liked/disliked sets and liked CSV until judged again.
+- Proposed default: the next reviewer differs from both the previous judge and the return requester. Keep photos pending if no eligible reviewer is available; no silent fallback. This rule requires confirmation.
+- Repeated requests must not create duplicate review rounds or assignments.
+- Re-review can confirm or change the previous verdict. No majority voting or mandatory second approval unless separately agreed.
 
-- Swipe right = like; swipe left = dislike. A committed decision advances to the next unresolved photo.
-- Provide explicit Like and Dislike buttons; swipes are not the only way to decide.
-- Click/tap the left edge = previous photo; right edge = next photo. Navigation does not record or change a decision.
-- A drag that becomes a swipe must not also trigger an edge click.
-- Show filename, package position, saved decision, and answered/total count.
-- Provide Previous / Next navigation controls, including keyboard-accessible buttons.
-- Undo restores the preceding decision state and returns to the affected photo; undo is not simply Previous.
-- Support undoing multiple decisions, including changes to an existing decision. Keep undo history across refreshes.
-- Clearly show saving/error state; failed saves must not be presented as successful decisions. Retry without duplicate history entries.
-- Broken/missing photos display an error with retry and navigation; do not silently mark them disliked.
+## Proposed interactions and undo
 
-### Liked-photo review and export
+- Swipes and explicit Like/Dislike buttons decide; edge clicks and Previous/Next controls only navigate.
+- Prevent a swipe from also triggering an edge click. Provide keyboard-accessible controls.
+- Show filename, position, answered/total count, saved state, and saving/errors.
+- Complete a package only when every active item is resolved or explicitly released, not merely visited.
+- Undo reverses the player's latest eligible action, restores prior state, and returns to the affected photo. Persist history across refreshes.
+- Undo must not overwrite another player's later action or reopen an obsolete round; show a conflict instead.
+- Proposed: return requests can also be undone before any later assignment/action depends on them.
+- Retries are idempotent. Missing/corrupt photos show an error, never an automatic dislike.
 
-- Show a gallery of all photos currently liked by the active player, across all packages.
-- Open a liked photo for a larger view and change its decision; default proposed action is Unlike (set to disliked).
-- CSV represents current likes, not historical likes, and is limited to the active player.
-- Proposed CSV columns: filename, relative_path. Include a header and correct escaping/Unicode handling.
-- Relative path disambiguates identical basenames in different directories; never expose absolute server paths.
-- Protect spreadsheet exports against formula injection while documenting any necessary escaping.
-- No selection of original-photo downloads or ZIP export in the MVP.
+## Proposed export and photo handling
 
-## Security decision required
+- CSV exports the shared current liked set, not personal likes or historical judgments.
+- Columns: filename, relative_path; handle CSV escaping, Unicode, and spreadsheet formula injection.
+- Relative paths disambiguate duplicate basenames without revealing absolute server paths.
+- Preserve original files, aspect ratio, and orientation; generate smaller review previews.
+- No original-photo download/ZIP export in MVP.
 
-Username-only access is convenient but is not authentication. Someone who knows another username could view or change that player's selections. It is acceptable only for an explicitly trusted/private deployment. Before public deployment choose a PIN, personal access link, or real login; enforce owner isolation server-side. A name entered into a form is not proof of identity.
+## Access model
 
-## Acceptance criteria for implementation
+Shared galleries/history are intentionally visible to participants. Active assignment and mutation permissions still require server-side checks. Username-only entry means someone can select another player's identity; attribution depends on trust. Use PINs, personal links, or login if that is unacceptable. Autocomplete never exposes credentials.
 
-- Two players' decisions and exports remain independent.
-- Choosing each supported package size returns the requested count or the remaining smaller count, without duplicates or prior decisions for that player.
-- Reloading and restarting the server preserves identity association, package order, progress, and decisions.
-- Swiping, buttons, edge navigation, and undo follow their distinct semantics on touch and mouse.
-- A completed package returns the player home; unfinished packages can be resumed.
-- CSV matches the player's current liked set, including changes and undo, with correct filename/path handling.
-- Photos retain aspect ratio and correct orientation; originals are unchanged.
-- Empty libraries, exhausted libraries, missing photos, corrupt images, save failures, and duplicate basenames are handled explicitly.
-- Photo bytes and database contents are excluded from Git.
-- Performance is measured against the actual library before claiming readiness for all 1,600 photos.
+## Acceptance criteria
 
-## Questions to settle before implementation
+- Known-player list, exact-name autocomplete, and similar-name suggestions avoid duplicates without silent merging.
+- Simultaneous allocation never assigns the same review round twice; all package sizes, smaller final packages, empty and reserved-only queues work.
+- Shared likes/dislikes are visible to other players; export reflects current shared likes.
+- Either a liked or disliked photo can be returned exactly once per active round, preserving history and following approved reviewer eligibility.
+- Restart/refresh preserves packages, decisions, return requests, and undo history.
+- Stale browser actions and undo cannot overwrite newer rounds or other players' work.
+- Touch/mouse navigation remains distinct from decisions; retries/errors are explicit.
+- Missing/corrupt photos and duplicate basenames are handled; originals remain unchanged.
+- Keep photos, generated previews, databases, and secrets out of Git.
+- Measure real-library performance before claiming readiness.
 
-1. Is this private/trusted access with username only, or should we add a PIN/personal access link?
-2. Confirm independent personal selection (not dividing a shared workload across players).
-3. Confirm swipes decide while side clicks only navigate, with explicit Like/Dislike buttons as well.
-4. Where will this run (Windows/Linux, home/LAN/public server), and what photo folder/formats will be used?
-5. Is stable filename order acceptable, or should each player's packages be randomized?
+## Questions before implementation
+
+1. Trusted private name selection, or protected identities via PIN/access link/login?
+2. Must a re-reviewer differ from both previous judge and requester, or only from the previous judge?
+3. Confirm pending re-review removes the photo from current likes/dislikes and liked CSV until judged again.
+4. Deployment OS, LAN/public access, photo directory/formats, and expected simultaneous players?
+5. Is returned-first filename ordering acceptable, and how should abandoned reservations be released?
 
 ## Out of scope initially
 
-Face recognition, player detection, AI ranking, browser uploads, editing/deleting originals, multiple events, photo ZIP downloads, leaderboards, moderation dashboards, and horizontal multi-server scaling.
+Face recognition, AI ranking, uploads, original editing/deletion, multiple events, ZIP downloads, leaderboards, majority voting, and multi-server scaling.

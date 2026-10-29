@@ -8,7 +8,7 @@ Planning only. No application code or dependencies have been installed. Product 
 
 ## Objective
 
-Let players review approximately 1,600 server-local photos (approximately 1.5 GB), save personal like/dislike decisions, revisit liked photos, and export their selected filenames as CSV.
+Divide approximately 1,600 server-local photos (approximately 1.5 GB) among players as a shared workload. Maintain shared like/dislike outcomes, allow other players to return either outcome for fresh judgment, and export the current shared liked filenames as CSV. Offer known-player selection and username autocomplete to avoid duplicate identities.
 
 ## Planning documents
 

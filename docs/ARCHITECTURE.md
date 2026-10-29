@@ -34,27 +34,32 @@ This is a proposal to minimize moving parts, not a claim that production perform
 ## Proposed relational model
 
 - players(id, username_key UNIQUE, display_name, created_at)
-- photos(id, relative_path UNIQUE, filename, size_bytes, mtime, width, height, availability)
+- photos(id, relative_path UNIQUE, filename, size_bytes, mtime, width, height, availability, current_round_id, state, version)
 - packages(id, player_id, requested_size, status, current_position, created_at, completed_at)
-- package_items(package_id, photo_id, position): unique membership and position per package.
-- decisions(player_id, photo_id, value, updated_at): one current like/dislike per player/photo.
-- decision_events(id, player_id, photo_id, package_id nullable, previous_value nullable, new_value, undone_at nullable, request_id UNIQUE, created_at)
+- review_rounds(id, photo_id, round_number, previous_outcome nullable, requested_by nullable, previous_judge nullable, reason nullable, status, created_at): unique round number per photo.
+- package_items(id, package_id, round_id, position, assignment_status): unique active assignment per review round; retain released assignments as history.
+- judgments(id, round_id UNIQUE, player_id, value, created_at): outcome of each round, not an independent personal vote.
+- review_events(id, photo_id, round_id, actor_id, action, previous_state, new_state, request_id UNIQUE, created_at, reverses_event_id nullable): append-only audit history for judgments, return requests, releases, and undo.
 
-Enable foreign keys; use parameterized SQL. Package allocation is transactional. Decision, event, package completion, and undo updates must be atomic. Use idempotency keys to prevent network retries from adding duplicate events. Treat undo as an ordered player-wide decision history, including gallery changes; detect stale/conflicting writes from multiple tabs rather than overwriting silently.
+Enable foreign keys; use parameterized SQL. Shared package allocation must atomically claim eligible pending review rounds and enforce one active assignment per round. Judgment, return-for-review, package completion, and undo updates must be atomic. Use idempotency keys and expected photo/round versions. Undo appends a compensating event and must reject attempts that conflict with later actions or assignments. Returning a judged photo creates one new pending round; preserve its previous judgment. Proposed reviewer eligibility excludes the previous judge and return requester, pending approval. Explicitly release unanswered assignments from abandoned packages; automatic expiry remains undecided.
 
 ## Proposed HTTP surface (illustrative, not an implementation contract)
 
 - GET / : home / identity selection.
-- POST /session : choose identity under the approved access model.
+- GET /api/players?q=... : list/search known players and suggest similar usernames; return minimal identity metadata, never credentials.
+- POST /api/players : explicitly create a player; normalized username uniqueness handles races.
+- POST /session : explicitly choose an existing identity under the approved access model. Similar-name suggestions never merge identities automatically.
 - POST /api/packages : allocate a package or return the existing unfinished one.
 - GET /api/packages/<id> : ordered photos, decisions, and progress.
 - PUT /api/photos/<id>/decision : like/dislike with idempotency and expected state.
 - POST /api/undo : reverse the latest eligible decision event.
-- GET /liked : current player's gallery.
-- GET /export.csv : current player's liked filenames/paths.
+- GET /liked and GET /disliked : shared current outcomes and visible review history.
+- POST /api/photos/<id>/return : request a new judgment round with expected version and optional reason.
+- POST /api/packages/<id>/release : release unanswered assignments explicitly.
+- GET /export.csv : shared current liked filenames/paths; exclude pending re-review photos by proposed policy.
 - GET /photos/<id>/preview : controlled preview access.
 
-Navigation state may be persisted separately and does not imply a decision. Mutating routes use CSRF protection and verify resource ownership. The server derives the player from the session, not from an arbitrary submitted player ID.
+Navigation does not imply a decision. Mutating routes use CSRF protection and enforce assignment ownership, active-round version, and reviewer eligibility. Shared galleries/export are intentionally shared among participants. The server derives the acting player from the session, not an arbitrary submitted player ID. Known-player autocomplete is identity discovery, not authentication; protect it appropriately if public deployment is selected.
 
 ## Deployment and data protection
 
@@ -66,7 +71,7 @@ Navigation state may be persisted separately and does not imply a decision. Muta
 - Session signing secret is environment configuration, never committed.
 - HTTPS and appropriate cookie flags for public deployment; access model must be approved first.
 - Escape user-provided display names; validate package sizes, decision values, and input lengths.
-- No automatic deletion of photos or sharing selections between players.
+- No automatic deletion of photos. Outcomes and review history are shared intentionally; credentials and session data are never exposed in the player directory.
 
 ## Sources consulted
 
@@ -76,4 +81,4 @@ Navigation state may be persisted separately and does not imply a decision. Muta
 
 ## Unvalidated assumptions
 
-Modest simultaneous usage, one event, supported image formats, server-local durable storage, and independent personal photo selection. Confirm access/deployment before implementation; benchmark rather than infer throughput.
+One event and a shared workload with shared outcomes are confirmed. Modest simultaneous usage, supported formats, and durable local storage remain assumptions. Reviewer independence, reservation release, access model, and deployment need approval; benchmark rather than infer throughput.

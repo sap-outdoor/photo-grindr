@@ -6,6 +6,8 @@ Status: awaiting product/architecture approval. Only repository initialization a
 
 - Resolve questions in REQUIREMENTS.md.
 - Confirm photo directory/formats, deployment target, access model, and ordering.
+- Confirm independent re-review eligibility, pending-export policy, and abandoned-assignment release.
+- Confirmed: shared workload and outcomes, checks and balances on both liked/disliked sets, known-player list and username autocomplete.
 - Record approved choices here or in architecture decision records.
 
 Gate: user approval before application implementation.
@@ -21,15 +23,15 @@ Verify: fixture import/re-import, duplicate basenames, missing/corrupt photos, r
 
 ## Stage 2: persistence and package engine
 
-- Implement identity under the agreed security model.
-- Implement transactional package allocation, decision writes, undo, progress, resume, and completion.
-- Add CSV export and ownership checks.
+- Implement known-player list, autocomplete/similarity suggestions, explicit identity selection, and race-safe username creation under the agreed access model.
+- Implement exclusive shared allocation, per-photo review rounds, judgments, return requests, audit history, safe undo, reservation release, resume, and completion.
+- Add shared liked CSV export, assignment ownership, and reviewer-eligibility checks.
 
-Verify: isolated players, all package sizes, partial final package, exhausted library, no duplicates, persistence after restart, repeated requests, undo chains, tab conflicts, concurrent writes, current-like CSV and spreadsheet-safe cells.
+Verify: exact and similar username suggestions without silent merging; concurrent username creation; all package sizes; exhausted and reserved-only queues; no double assignment under concurrency; returning liked and disliked photos; eligible reallocation; preserved history; pending CSV exclusion; safe undo across interleaved players; stale rounds; restart; retries; abandoned-package release; spreadsheet-safe CSV.
 
 ## Stage 3: review interface
 
-- Build mobile-first home, review card, and liked-gallery screens.
+- Build mobile-first home with known-player picker/autocomplete, review card, shared liked/disliked galleries, history, and send-back-for-review controls.
 - Add swipes, explicit decision buttons, edge navigation, undo, keyboard controls, and saving/error states.
 - Preload nearby previews and keep UI state consistent with committed server state.
 
@@ -37,7 +39,7 @@ Verify: mouse and touch, swipe/click separation, portrait/landscape photos, resp
 
 ## Stage 4: end-to-end and deployment
 
-- Exercise the full journey with multiple players and real browser interaction.
+- Exercise the full journey with multiple players and real browser interaction, including simultaneous claims, identity suggestions, and the judge -> challenge -> independent re-review cycle.
 - Run the actual library import and measure startup, preview generation, review latency, and concurrent saves.
 - Document production startup for the chosen OS, environment variables, backups/restores, and photo-library updates.
 - Test restore into a separate data directory.
