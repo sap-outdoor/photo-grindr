@@ -33,7 +33,7 @@ test('navigation clamps at either end and handles an empty package', () => {
  assert.equal(nextPosition(0,1,0),0);
 });
 
-function undoBrowser({loseResponse = true, loseRefresh = false, review = false, cookie = '', startPosition = 0, initialDecisions = null, failNavigation = false} = {}) {
+function undoBrowser({loseResponse = true, loseRefresh = false, review = false, cookie = '', startPosition = 0, initialDecisions = null, failNavigation = false, serverState = null, storage = new Map(), expireDecision = false} = {}) {
  const vm = require('node:vm');
  const fs = require('node:fs');
  const elements = new Map(), calls = [], replays = new Map();
@@ -52,10 +52,14 @@ function undoBrowser({loseResponse = true, loseRefresh = false, review = false, 
   body:{classList:{toggle(){}}}, addEventListener(name, fn){if(name==='DOMContentLoaded') ready.push(fn); else events[name]=fn;}};
  const fetch = async (path, options) => {
   const body = options.body && JSON.parse(options.body); calls.push({path,body});
-  if (path === '/api/activity') return {ok:true,status:200,json:async()=>({})};
+  if (path === '/api/activity' || path === '/api/return') return {ok:true,status:200,json:async()=>({})};
   if (path.startsWith('/api/gallery')) return {ok:true,status:200,json:async()=>({items:[{id:99,version:1,filename:'Photo',relative_path:'Like',preview_url:'/gallery/99',decision:path.includes('disliked')?'disliked':'liked',judged_by:'Like'}],page:1,pages:1,total:1})};
   if (review && path.startsWith('/api/packages/')) return {ok:true,status:200,json:async()=>({package:packageState()})};
-  if (review && path === '/api/navigate') { if(failNavigation) return {ok:false,status:503,json:async()=>({})}; position=body.position; return {ok:true,status:200,json:async()=>({package:packageState()})}; }
+  if (review && path === '/api/navigate') { if(failNavigation) return {ok:false,status:typeof failNavigation === 'number' ? failNavigation : 503,json:async()=>({})}; position=body.position; return {ok:true,status:200,json:async()=>({package:packageState()})}; }
+  if (review && path === '/api/decision' && expireDecision) {
+   Object.assign(serverState,{package:null,expired:true,expired_package_id:1});
+   return {ok:false,status:409,json:async()=>({code:'expired',error:'Package expired.'})};
+  }
   if (review && path === '/api/decision') { decisions[body.photo_id]=body.value; answered++; return {ok:true,status:200,json:async()=>({package:packageState(),complete:answered===4})}; }
   if (path === '/api/undo') {
    undoCalls++;
@@ -65,11 +69,12 @@ function undoBrowser({loseResponse = true, loseRefresh = false, review = false, 
   }
   if (path === '/api/state') {
    if (loseRefresh && undoCalls === 1) throw new TypeError('Refresh unavailable');
-   return {ok:true,status:200,json:async()=>({player:{id:1,username:'Alice'},package:packageState(),counts:{liked:answered},expired:false})};
+   return {ok:true,status:200,json:async()=>serverState || ({player:{id:1,username:'Alice'},package:packageState(),counts:{liked:answered},expired:false})};
   }
   throw new Error(`Unexpected intervening request: ${path}`);
  };
- const context = vm.createContext({document,fetch,crypto:{randomUUID:()=>`undo-${++serial}`},window:{scrollTo(){}},Image:class {}});
+ const sessionStorage={getItem:key=>storage.get(key) ?? null,setItem:(key,value)=>storage.set(key,String(value))};
+ const context = vm.createContext({document,fetch,sessionStorage,crypto:{randomUUID:()=>`undo-${++serial}`},window:{scrollTo(){}},Image:class {}});
  if(fs.existsSync(require('node:path').join(__dirname,'i18n.js'))) vm.runInContext(fs.readFileSync(require.resolve('./i18n.js'),'utf8'),context);
  vm.runInContext(fs.readFileSync(require.resolve('./app.js'),'utf8'),context);
  ready.forEach(fn=>fn());
@@ -246,11 +251,98 @@ test('static language bindings translate title, mixed text whitespace and aria w
 
 test('fallback request errors translate with language without another request', async () => {
  const browser=undoBrowser({review:true,failNavigation:true}); await browser.settle(); await browser.click('resume');
- assert.equal(browser.element('notice').textContent,'Požadavek selhal (503). Zkuste to prosím znovu.');
+ assert.equal(browser.element('notice-message').textContent,'Požadavek selhal (503). Zkuste to prosím znovu.');
  const calls=browser.calls.length; await browser.click('language-toggle');
- assert.equal(browser.element('notice').textContent,'Request failed (503). Please try again.'); assert.equal(browser.calls.length,calls);
+ assert.equal(browser.element('notice-message').textContent,'Request failed (503). Please try again.'); assert.equal(browser.calls.length,calls);
 });
 
+
+test('old expired package allows direct Explore, gallery activity and returns without repeated home redirects', async () => {
+ const serverState={player:{id:1,username:'Alice'},package:null,expired:true,expired_package_id:2,counts:{liked:1}};
+ const browser=undoBrowser({serverState}); await browser.settle();
+ assert.equal(browser.element('notice').hidden,false);
+ assert.equal(browser.element('home').hidden,false);
+ await browser.click('nav-explore');
+ assert.equal(browser.element('gallery').hidden,false);
+ await browser.click('select-page');
+ assert.equal(browser.element('selected-count').textContent,'Vybráno: 1');
+ await browser.click('return-selected'); await browser.click('return-confirm-save'); await browser.settle();
+ assert.equal(browser.element('gallery').hidden,false,'historical expiry must not exit Explore after return refresh');
+ assert.equal(browser.calls.some(call=>call.path==='/api/packages'),false);
+ await browser.click('nav-operate'); await browser.click('nav-explore');
+ assert.equal(browser.element('gallery').hidden,false);
+});
+
+test('expiry notice has a localized explicit dismiss button and stays dismissed per player and expired package', async () => {
+ const fs=require('node:fs'),path=require('node:path');
+ const template=fs.readFileSync(path.join(__dirname,'..','templates','index.html'),'utf8');
+ assert.match(template,/<span id="notice-message"><\/span>/);
+ assert.match(template,/<button id="notice-dismiss"[^>]*type="button"[^>]*aria-label=[^>]*>[\s\S]*?×[\s\S]*?<\/button>/);
+ const serverState={player:{id:1,username:'Alice'},package:null,expired:true,expired_package_id:2,counts:{}};
+ const storage=new Map();
+ let browser=undoBrowser({serverState,storage}); await browser.settle();
+ assert.equal(browser.element('notice-dismiss').hidden,false);
+ assert.equal(browser.element('notice-dismiss').attrs['aria-label'],'Zavřít oznámení o vypršení balíčku');
+ assert.match(browser.element('notice-message').textContent,/10 minutách/);
+ await browser.click('language-toggle');
+ assert.equal(browser.element('notice-dismiss').attrs['aria-label'],'Dismiss package expiry notice');
+ assert.match(browser.element('notice-message').textContent,/10 minutes/);
+ await browser.click('notice-dismiss'); assert.equal(browser.element('notice').hidden,true);
+ await browser.click('nav-operate'); assert.equal(browser.element('notice').hidden,true);
+ browser=undoBrowser({serverState,storage}); await browser.settle();
+ assert.equal(browser.element('notice').hidden,true,'dismissal survives page refresh');
+ serverState.expired_package_id=3;
+ await browser.click('nav-operate'); assert.equal(browser.element('notice').hidden,false,'new expiry warns again');
+ await browser.click('notice-dismiss');
+ serverState.player={id:2,username:'Bob'};
+ await browser.click('nav-operate'); assert.equal(browser.element('notice').hidden,false,'other player has separate dismissal');
+});
+
+test('real expiry during review exits stale package and leaves an explicit dismissible warning', async () => {
+ const serverState={player:{id:1,username:'Alice'},package:{id:1,status:'active',answered:2,total:4},expired:false,expired_package_id:null,counts:{}};
+ const browser=undoBrowser({serverState,review:true,expireDecision:true}); await browser.settle();
+ await browser.click('resume'); assert.equal(browser.element('review').hidden,false);
+ await browser.click('like');
+ assert.equal(browser.element('review').hidden,true); assert.equal(browser.element('home').hidden,false);
+ assert.equal(browser.element('like').disabled,true);
+ assert.match(browser.element('notice-message').textContent,/Platnost balíčku vypršela/);
+ assert.equal(browser.element('notice-dismiss').hidden,false);
+ await browser.click('language-toggle'); assert.match(browser.element('notice-message').textContent,/Package expired/);
+ await browser.click('notice-dismiss'); await browser.click('nav-operate');
+ assert.equal(browser.element('notice').hidden,true);
+});
+
+test('refresh discovering real expiry leaves review with expiry warning rather than Undo success', async () => {
+ const serverState={player:{id:1,username:'Alice'},package:{id:1,status:'active',answered:2,total:4},expired:false,expired_package_id:null,counts:{}};
+ const browser=undoBrowser({serverState,review:true,loseResponse:false}); await browser.settle();
+ await browser.click('resume');
+ Object.assign(serverState,{package:null,expired:true,expired_package_id:1});
+ await browser.click('undo');
+ assert.equal(browser.element('review').hidden,true); assert.equal(browser.element('home').hidden,false);
+ assert.equal(browser.element('like').disabled,true);
+ assert.match(browser.element('notice-message').textContent,/platnost balíčku vypršela/);
+ assert.equal(browser.element('notice-dismiss').hidden,false);
+});
+
+test('expiry dismiss control cannot hide errors, conflicts, saving or unresolved Undo warnings', async () => {
+ for (const status of [503,409]) {
+  const browser=undoBrowser({review:true,failNavigation:status}); await browser.settle();
+  const saving=browser.click('resume');
+  assert.equal(browser.element('saving').hidden,false);
+  await browser.click('notice-dismiss'); assert.equal(browser.element('saving').hidden,false);
+  await saving;
+  assert.equal(browser.element('notice-dismiss').hidden,true);
+  const message=browser.element('notice-message').textContent;
+  assert.ok(message); await browser.click('notice-dismiss'); await browser.settle();
+  assert.equal(browser.element('notice').hidden,false); assert.equal(browser.element('notice-message').textContent,message);
+ }
+ const browser=undoBrowser(); await browser.settle(); await browser.click('undo'); await browser.click('nav-explore');
+ assert.equal(browser.element('notice-dismiss').hidden,true);
+ await browser.click('notice-dismiss'); assert.equal(browser.element('notice').hidden,false);
+ assert.match(browser.element('notice-message').textContent,/Výsledek vrácení/);
+ const count=browser.calls.length; await browser.click('language-toggle');
+ assert.equal(browser.calls.length,count); assert.match(browser.element('notice-message').textContent,/Undo outcome is unresolved/);
+});
 
 test('remaining counter uses Czech and English count grammar', () => {
  const i18n=require('./i18n.js'); i18n.setLanguage('cs');

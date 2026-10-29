@@ -25,6 +25,8 @@ This records product decisions, not an implementation report.
 - Release and next claim run transactionally. Cleanup at allocation/resume/write time is enough for availability; no cron/background scheduler is required.
 - A returning player sees that the old package expired and can request a new one. Historical progress remains visible, but released work is no longer theirs.
 - Long passive inspection can exceed the timeout. Explain this in the UI rather than silently accepting a stale vote; keep the agreed 10-minute limit unless changed explicitly.
+- Expiry affects old assignments only: allow Explore/activity/CSV/return requests immediately, without requiring a replacement package or acknowledgment.
+- Show a dismissible warning once per player/expired-package identity in the browser tab; do not let historical expiry bounce users out of galleries after refresh. Reject writes to the expired package as before.
 
 ## Photo placement and export
 

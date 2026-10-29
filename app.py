@@ -135,8 +135,6 @@ def create_app(config=None):
                         db.execute('INSERT INTO package_items(package_id,photo_id,round,position) VALUES(?,?,?,?)', (package_id,photo['id'],photo['round'],position))
                         db.execute('UPDATE photos SET assigned_package=?,version=version+1 WHERE id=?', (package_id,photo['id']))
             db.execute('UPDATE players SET last_action=? WHERE id=?', (now(),pid))
-            latest = db.execute('SELECT id,status FROM packages WHERE player_id=? ORDER BY id DESC LIMIT 1', (pid,)).fetchone()
-            session['acknowledged_package'] = [pid, latest['id']] if latest and latest['status']=='expired' else None
         return jsonify(package=package_obj(package_id))
 
     @app.get('/api/packages/<int:package_id>')
@@ -430,7 +428,7 @@ def state():
     pid = session.get('player_id')
     row = db.execute('SELECT id,username FROM players WHERE id=?', (pid,)).fetchone()
     package = db.execute("SELECT id,status FROM packages WHERE player_id=? ORDER BY id DESC LIMIT 1", (pid,)).fetchone()
-    return dict(player=dict(row) if row else None,counts=counts,package=package_obj(package['id']) if package and package['status']=='active' else None,expired=bool(package and package['status']=='expired'))
+    return dict(player=dict(row) if row else None,counts=counts,package=package_obj(package['id']) if package and package['status']=='active' else None,expired=bool(package and package['status']=='expired'),expired_package_id=package['id'] if package and package['status']=='expired' else None)
 
 
 def owned_package(package_id):
@@ -443,9 +441,8 @@ def owned_package(package_id):
 
 
 def touch():
-    latest = get_db().execute('SELECT id,status FROM packages WHERE player_id=? ORDER BY id DESC LIMIT 1', (player_id(),)).fetchone()
-    if latest and latest['status']=='expired' and session.get('acknowledged_package') != [player_id(), latest['id']]:
-        raise APIError('Your package expired after 10 minutes. Choose a new package.', 'expired',409)
+    # Expiry protects assignments, not a player's unrelated browsing/export activity.
+    # owned_package() still rejects all operations targeting an expired package.
     get_db().execute('UPDATE players SET last_action=? WHERE id=?', (now(),player_id()))
 
 

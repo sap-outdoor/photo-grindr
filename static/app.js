@@ -21,7 +21,27 @@ if (typeof document !== 'undefined') document.addEventListener('DOMContentLoaded
   const number = n => Number(n || 0).toLocaleString(PhotoI18n.language === 'en' ? 'en-US' : 'cs-CZ');
   const t = PhotoI18n.t;
   const text = (id, value, vars = {}) => PhotoI18n.bind($(id), value, vars);
-  function notice(message, type = '', vars = {}) { text('notice', message, vars); $('notice').className = `notice ${type}`; $('notice').hidden = !message; }
+  let noticeExpiryKey = null;
+  const seenExpiries = new Set();
+  function notice(message, type = '', vars = {}, expiryKey = null) {
+    noticeExpiryKey = expiryKey;
+    text('notice-message', message, vars); $('notice').className = `notice ${type}`; $('notice').hidden = !message;
+    $('notice-dismiss').hidden = !expiryKey;
+  }
+  function expiryNotice(message, packageId, force = false) {
+    const key = state?.player && packageId != null ? `photo-grindr:expiry:${state.player.id}:${packageId}` : null;
+    let dismissed = false;
+    try { dismissed = key && sessionStorage.getItem(key) === 'dismissed'; } catch (_) { /* Storage may be unavailable. */ }
+    if (!force && key && (dismissed || seenExpiries.has(key))) return;
+    if (key) seenExpiries.add(key);
+    notice(message, 'warning', {}, key);
+  }
+  PhotoI18n.bind($('notice-dismiss'), 'Dismiss package expiry notice', {}, 'aria-label');
+  $('notice-dismiss').addEventListener('click', () => {
+    if (busy || pendingUndo || !noticeExpiryKey) return;
+    try { sessionStorage.setItem(noticeExpiryKey, 'dismissed'); } catch (_) { /* In-memory suppression still works. */ }
+    notice('');
+  });
   function setBusy(value) {
     busy = value; document.body.classList.toggle('busy', value);
     document.querySelectorAll('button, input, select').forEach(el => { el.disabled = el.id === 'language-toggle' ? false : value || !!pendingUndo; });
@@ -37,9 +57,16 @@ if (typeof document !== 'undefined') document.addEventListener('DOMContentLoaded
     return data;
   }
   async function refresh() {
+    const reviewingPackage = view === 'review' ? pkg?.id : null;
     state = await api('/api/state'); pkg = state.package;
-    if (state.expired || pkg?.status === 'expired') { pkg = null; show('home'); notice('Your package expired after 10 minutes without an operation. Saved decisions are safe. Choose a fresh package.', 'warning'); }
+    const reviewExpired = !!reviewingPackage && (pkg?.status === 'expired' || (state.expired && (!pkg || pkg.id !== reviewingPackage)));
+    if (state.expired || pkg?.status === 'expired') {
+      if (pkg?.status === 'expired') pkg = null;
+      if (reviewExpired) show('home');
+      expiryNotice('Your package expired after 10 minutes without an operation. Saved decisions are safe. Choose a fresh package.', state.expired_package_id, reviewExpired);
+    }
     renderHome();
+    return reviewExpired;
   }
   async function run(action, retryUndo = false) {
     if (busy) return;
@@ -48,9 +75,10 @@ if (typeof document !== 'undefined') document.addEventListener('DOMContentLoaded
     try { await action(); }
     catch (error) {
       if (error.code === 'expired') {
+        const expiredPackageId = pkg?.id;
         pkg = null; show('home');
         try { await refresh(); } catch (_) { /* Original error remains visible. */ }
-        notice('Package expired. Unanswered photos were released; saved decisions are safe. Choose a fresh package.', 'warning');
+        expiryNotice('Package expired. Unanswered photos were released; saved decisions are safe. Choose a fresh package.', state?.expired_package_id ?? expiredPackageId, true);
       } else if (error.status === 409) {
         try { await refresh(); if (view === 'review') renderReview(); if (view === 'gallery') await loadGallery(); } catch (_) { /* Keep conflict message. */ }
         notice('{error} Latest data has been requested. Review it before trying again.', 'warning', {error:error.message});
@@ -140,10 +168,10 @@ if (typeof document !== 'undefined') document.addEventListener('DOMContentLoaded
       try { data = await api('/api/undo', pendingUndo); }
       catch (error) { if (error.status && error.status < 500) pendingUndo = null; throw error; }
       if (!Object.hasOwn(data, 'package')) throw new Error(t('Undo response was incomplete. Retry Undo to confirm its outcome.'));
-      pkg = data.package; await refresh();
+      pkg = data.package; const reviewExpired = await refresh();
       if (pkg) renderReview(); else if (view === 'gallery') await loadGallery();
       pendingUndo = null;
-      notice('Last eligible action undone.', 'success');
+      if (!reviewExpired) notice('Last eligible action undone.', 'success');
     }, true);
   }
   async function searchPlayers() {

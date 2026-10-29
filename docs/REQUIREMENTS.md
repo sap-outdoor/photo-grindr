@@ -40,6 +40,8 @@ Status: planning only. Confirmed requirements and proposed defaults below are di
 - Check expiry before recording new activity: an operation after the deadline cannot revive the old assignment. Reject stale votes/undo and offer a fresh package.
 - Expired work is immediately eligible for the next allocation; perform cleanup transactionally before allocation/resume/mutations. No dedicated session table or per-session timer is needed. An optional periodic cleanup is not required for correctness.
 - Provide explicit release as a convenience. Saved likes/dislikes remain unchanged by expiry.
+- Expired-package history must never block unrelated Explore, gallery selection/return, CSV, or activity recording, even without attempting another allocation.
+- Expiry notification is informational and dismissible, keyed by player and expired package; do not redirect an already open gallery on every state refresh. A new expiry during active review must still exit that stale review safely.
 
 ## Proposed checks-and-balances workflow
 

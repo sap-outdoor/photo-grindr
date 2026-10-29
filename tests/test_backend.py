@@ -56,7 +56,8 @@ def test_expiry_boundary_passive_and_shared_devices(app, client):
     expired_read = client.get(f"/api/packages/{package['id']}")
     assert expired_read.status_code == 409
     assert expired_read.json['code'] == 'expired'
-    assert post(client,'/api/activity',{}).status_code == 409
+    # Activity is unrelated to the expired assignment; the stale votes above remain blocked.
+    assert post(client,'/api/activity',{}).status_code == 200
     fresh = post(client,'/api/packages',{'size': 50}).json['package']
     assert fresh['id'] != package['id']
     assert vote(client,package).status_code == 409

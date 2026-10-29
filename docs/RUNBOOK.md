@@ -45,6 +45,8 @@ The shared PIN is only a casual gate. It is verified server-side; entry and sele
 - Arrow keys, Previous/Next, and edge clicks navigate without votes. U / Undo reverses the latest eligible action.
 - After 10 minutes without a player operation, unanswered assignments expire; saved judgments stay saved. Returning users receive a package-expired notice and can request fresh work.
 - Passive polls/previews do not renew activity; all devices choosing the same player share the activity clock.
+- Expiry never requires taking a replacement package before opening Explore, returning photos, or exporting CSV. The warning has a localized dismiss button and is remembered per player/expired package in tab sessionStorage; a new expiry warns again. Historical expiry does not redirect an open gallery.
+- Entry and app footers show © 2026 Š&P Outdoor z.s. and a link to the GitHub repository.
 - Shared galleries allow sending liked or disliked photos back for judgment. Anyone can receive them next. Returned photos are pending and excluded from current likes/CSV until judged again.
 - CSV contains shared current liked filenames and portable relative paths. No photo/ZIP download feature is included.
 
@@ -57,7 +59,7 @@ node --check static/app.js
 uv pip check --python .venv/Scripts/python.exe
 ```
 
-Observed after localization and review-focus changes: 20 backend tests passed; 17 frontend/interaction tests passed; syntax checks passed for app.js and i18n.js; installed dependencies compatible. Tests use generated fixtures and isolated databases, not event decisions.
+Observed after expiry/Explore recovery and footer changes: 24 backend tests passed; 22 frontend/interaction tests passed; syntax checks passed for app.js and i18n.js; installed dependencies compatible. Tests use generated fixtures and isolated databases, not event decisions.
 
 Parent Chromium check on the running localhost server verified wrong/correct PIN flow; denied direct API, preview, and CSV access before entry; actual total 1,682; a real JPEG preview returned successfully; 390px mobile viewport without horizontal overflow; no page JavaScript errors. These parent checks did not create player identities or cast votes in event data.
 
