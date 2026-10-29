@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="{{ lang | default('cs') }}">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light"><title data-i18n-title="Enter · Photo Grindr">{{ "Enter · Photo Grindr" if lang == 'en' else "Vstup · Photo Grindr" }}</title>
+  <script src="{{ url_for('static', filename='i18n.js') }}" defer></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="entry-page">
+  <main class="entry-shell">
+    <a class="brand" href="/enter" aria-label="Photo Grindr"><span class="brand-mark" aria-hidden="true">◩</span> photo grindr<span class="brand-dot">.</span></a>
+    <button id="language-toggle" class="language-toggle" type="button" aria-label="{{ 'Switch to Czech' if lang == 'en' else 'Přepnout do angličtiny' }}">{{ 'CS' if lang == 'en' else 'EN' }}</button>
+    <div class="entry-card">
+      <p class="eyebrow">{{ "THE SHARED PHOTO DESK" if lang == 'en' else "SPOLEČNÝ VÝBĚR FOTEK" }}</p>
+      <h1>{{ "A good shot" if lang == 'en' else "Dobrá fotka" }}<br>{{ "deserves a" if lang == 'en' else "si zaslouží" }}<br><span class="accent-text">{{ "second look." if lang == 'en' else "druhý pohled." }}</span></h1>
+      <p class="entry-copy">{{ "One library. A few fresh eyes. Enter the shared PIN to help find the keepers." if lang == 'en' else "Jedna knihovna, více pohledů. Zadejte společný PIN a pomozte vybrat ty nejlepší fotky." }}</p>
+      <form action="/enter" method="post" class="pin-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label for="pin">{{ "Shared entry PIN" if lang == 'en' else "Společný vstupní PIN" }}</label>
+        <input id="pin" name="pin" type="password" inputmode="numeric" autocomplete="off" required autofocus placeholder="{{ 'Enter PIN' if lang == 'en' else 'Zadejte PIN' }}" aria-describedby="pin-help{% if error %} pin-error{% endif %}">
+        {% if error %}<p id="pin-error" class="form-error" role="alert">{{ error }}</p>{% endif %}
+        <button class="primary" type="submit">{{ "Enter the photo desk" if lang == 'en' else "Přejít k výběru fotek" }} <span aria-hidden="true">↗</span></button>
+        <p id="pin-help" class="small muted">{{ "A shared space, not a personal account. Choose your player after entering." if lang == 'en' else "Společný prostor, ne osobní účet. Po vstupu si vyberete hráče." }}</p>
+      </form>
+    </div>
+    <footer class="entry-footer"><span>{{ "Fewer maybes. More keepers." if lang == 'en' else "Méně váhání. Více skvělých fotek." }}</span><span>{{ "LOOK • CHOOSE • REPEAT" if lang == 'en' else "DÍVEJTE SE • VYBÍREJTE • POKRAČUJTE" }}</span></footer>
+  </main>
+</body>
+</html>

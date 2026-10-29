@@ -4,7 +4,7 @@ A proposed web app for reviewing sports-event photos in manageable batches.
 
 ## Status
 
-Planning only. No application code or dependencies have been installed. Product and architecture choices below are proposals pending approval.
+Initial local version implemented and running on http://localhost:5000 (shared PIN: 2026). Backend and interaction tests pass; PIN flow, protected routes, a real photo preview, and mobile layout were checked in Chromium. Czech is the default language with a live CS/EN switch. Review skips answered photos and prominently shows the remaining count; the palette is a pastel navy/yellow interpretation of Trail Maniacs. Final targeted independent code review passed with no blockers.
 
 ## Objective
 
@@ -40,4 +40,15 @@ Python + Flask, SQLite, HTML/CSS and vanilla JavaScript, Pillow for previews. A 
 
 ## Running
 
-Not available yet. Implementation starts after agreement on the plan.
+See [runbook](docs/RUNBOOK.md) for setup, start/stop, configuration, and backups.
+
+Windows quick start (from this directory):
+
+```bash
+uv venv .venv
+uv pip install --python .venv/Scripts/python.exe -r requirements.txt
+.venv/Scripts/python.exe app.py index
+.venv/Scripts/python.exe app.py serve --port 5000
+```
+
+Open http://localhost:5000 and enter the shared PIN `2026`. The index command reads metadata from the existing approved folders; previews are generated and cached when viewed. Existing judgments are retained across restarts.

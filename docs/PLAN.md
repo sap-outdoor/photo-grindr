@@ -1,6 +1,6 @@
 # Implementation plan
 
-Status: awaiting product/architecture approval. Only repository initialization and planning documentation are authorized in this stage.
+Status: initial localhost implementation running. Parent verification: 20 backend tests and 17 JavaScript/frontend tests passed; Chromium verified real PIN entry, direct API/image/CSV gating, a real JPEG preview, desktop/mobile home, and no JavaScript page errors. See RUNBOOK.md. Czech-first bilingual UI, pending-only review, and pastel Trail Maniacs-inspired palette are running after a controlled restart. Parent browser fixture verified decision/navigation/Undo/completion/gallery-return/CSV and live CS/EN switching. Final targeted independent review passed with no blockers; Linux deployment and backup/restore rehearsal are not yet verified.
 
 ## Stage 0: agree scope
 
@@ -12,7 +12,7 @@ Status: awaiting product/architecture approval. Only repository initialization a
 - Confirmed: shared workload and outcomes, checks and balances on both liked/disliked sets, known-player list and username autocomplete.
 - Record approved choices here or in architecture decision records.
 
-Gate: user approval before application implementation.
+Gate satisfied: user explicitly requested implementation and a locally running version on localhost.
 
 ## Stage 1: foundation and importer
 
@@ -45,6 +45,9 @@ Verify: mouse and touch, swipe/click separation, portrait/landscape photos, resp
 - Run the actual library import and measure startup, preview generation, review latency, and concurrent saves.
 - Document Windows development and Linux LXC production startup, environment variables, read-only photo mount/transfer, backups/restores, and library updates. Verify portable relative-path CSV behavior on both OSes.
 - Test restore into a separate data directory.
+- Document a short event-day runbook: start, smoke test, stop, consistent stopped-app database backup, and reopen months later with overdue reservations released and saved decisions intact.
+- Keep this a short-lived, reusable tool rather than a permanent service; no mandatory scheduler, Redis, session database, or multi-event management.
+- Explicit package-expired notification is confirmed; test return after inactivity and return after extended server downtime.
 
 Gate: real tests and manual browser checks pass; unresolved limitations are documented. Do not claim large-library performance before the real library is available.
 
@@ -61,4 +64,4 @@ Write failing automated tests before implementing backend behavior; test pure UI
 - docs/PHOTO_LIBRARY.md
 - .gitignore
 
-No application code, installed dependencies, or photo ingestion in this initial stage.
+The initial planning-only stage is complete. Application code, pinned dependencies, metadata index, Czech/English UI, and local browser verification have since been delivered. Stage 4 Linux deployment and backup/restore rehearsal remain future work.

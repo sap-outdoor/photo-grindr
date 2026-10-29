@@ -52,6 +52,15 @@ Status: planning only. Confirmed requirements and proposed defaults below are di
 - Repeated requests must not create duplicate review rounds or assignments.
 - Re-review can confirm or change the previous verdict. No majority voting or mandatory second approval unless separately agreed.
 
+## Confirmed language and focused-review changes
+
+- Czech is the primary UI language; English remains available as a secondary language. Persist the explicit language choice in the browser.
+- Translate entry, buttons, notices, errors, confirmation dialogs, and accessibility labels; keep filenames, usernames, protocol values, and CSV identifiers unchanged.
+- Review mode prominently displays the number of unanswered photos remaining in the current package.
+- Hide already judged photos from review-mode navigation, including arrows and edge taps; keep original server indices when navigating.
+- Undo makes the restored unanswered photo visible again. Once no unanswered items remain, show completion rather than a decided photo.
+- Shared liked/disliked galleries remain available for checks and balances; this hiding rule is for the decision screen, not those galleries.
+
 ## Proposed interactions and undo
 
 - Swipes and explicit Like/Dislike buttons decide; edge clicks and Previous/Next controls only navigate.
@@ -91,6 +100,15 @@ Confirmed: trusted group behind shared PIN `2026`, intended as a casual entry ba
 - Missing/corrupt photos and duplicate basenames are handled; originals remain unchanged.
 - Keep photos, generated previews, databases, and secrets out of Git.
 - Measure real-library performance before claiming readiness.
+
+## Confirmed short-term operation
+
+- Used for a short event window: online for a day, then potentially reused about half a year later. Do not design as an always-on service.
+- Show an explicit package-expired notification when inactivity releases a player's unanswered assignments; offer a new package without losing saved judgments.
+- Keep MVP operations simple: one app process, SQLite, local photos/cache, request-time expiry; no required scheduler, Redis, session database, or elaborate deployment platform.
+- Preserve database and photo-relative paths between runs; stopping the app does not reset decisions. On reopening, overdue unanswered reservations expire before reuse.
+- Back up the database consistently when shutting down and retain existing photo files; do not re-download them for the next run. Document start, stop, backup, restore, and a quick pre-event smoke test.
+- Do not add multi-event/reset machinery by default. Reusing this event keeps its data; a different photo set should use a separate data directory unless another policy is explicitly agreed.
 
 ## Questions before implementation
 

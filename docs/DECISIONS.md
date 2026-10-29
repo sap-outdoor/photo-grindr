@@ -34,6 +34,21 @@ This records product decisions, not an implementation report.
 - Windows development reads the approved existing source folders without copies or cloud downloads.
 - No photo-download/ZIP feature. CSV is consumed by a separate local script.
 
+## Confirmed event-day lifecycle
+
+- Intended to run for a day, then possibly again around half a year later; keep deployment and maintenance proportionate.
+- Explicit package-expired notification is approved. Offer a fresh package; preserve saved judgments.
+- No required scheduler or always-on auxiliary service. Request-time cleanup handles inactivity, including after downtime.
+- Persist SQLite and photos between runs. Document stopped-app backup, restore, and a short smoke test before reopening.
+- No automatic reset on restart and no multi-event management feature in this MVP.
+
+## Confirmed Czech-first focused review
+
+- Czech default with optional English and persisted language preference.
+- Large remaining-unanswered count on the decision screen.
+- Decision-screen navigation skips answered photos; undo restores the affected unanswered photo.
+- Liked/disliked galleries still show current shared outcomes for checking and return requests.
+
 ## Still proposed
 
 - Returned photos become pending and leave current liked/disliked sets and liked CSV until rejudged.
