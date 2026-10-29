@@ -8,7 +8,7 @@ Planning only. No application code or dependencies have been installed. Product 
 
 ## Objective
 
-Divide approximately 1,600 server-local photos (approximately 1.5 GB) among players as a shared workload. Maintain shared like/dislike outcomes, allow other players to return either outcome for fresh judgment, and export the current shared liked filenames as CSV. Offer known-player selection and username autocomplete to avoid duplicate identities.
+Divide 1,682 existing watermarked JPEG photos (1,233,067,582 bytes observed during metadata inspection) among players as a shared workload. Maintain shared like/dislike outcomes, allow other players to return either outcome for fresh judgment, and export the current shared liked filenames as CSV. Offer known-player selection and username autocomplete to avoid duplicate identities.
 
 ## Planning documents
 
@@ -19,6 +19,15 @@ Divide approximately 1,600 server-local photos (approximately 1.5 GB) among play
 ## Proposed technology
 
 Python + Flask, SQLite, HTML/CSS and vanilla JavaScript, Pillow for previews. A single application and local persistent storage; no separate database service or frontend build pipeline in the initial design.
+
+## Confirmed operating constraints
+
+- No passwords for now: known-player selection is trust-based attribution.
+- Any player may judge a returned photo, including its previous judge or the person who returned it.
+- Development/testing: Windows. Production: Linux LXC on Proxmox.
+- Only the two existing watermarked directories are in scope; see [photo library](docs/PHOTO_LIBRARY.md).
+- CSV is the deliverable for a separate local selection script; no photo-download or ZIP feature.
+- Challenge assumptions and flag trade-offs rather than silently expanding scope.
 
 ## Repository rules
 

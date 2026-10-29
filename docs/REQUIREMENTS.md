@@ -4,7 +4,10 @@ Status: planning only. Confirmed requirements and proposed defaults below are di
 
 ## Confirmed requirements
 
-- Web app for approximately 1,600 server-local sports photos (approximately 1.5 GB).
+- Web app for existing server-local sports photos. Metadata inspection found 1,682 JPEGs in the two approved watermarked directories; see PHOTO_LIBRARY.md.
+- Windows development/testing; production Linux LXC on Proxmox.
+- No password protection for now; player names provide trust-based attribution.
+- No photo-download/ZIP feature: export CSV for a separate local script to pick files.
 - Shared workload: players divide a common library, rather than each reviewing every photo independently.
 - Show known players. Username input autocompletes existing players and suggests similar names to avoid duplicate identities.
 - Choose review packages of 50, 100, or 250 photos.
@@ -21,7 +24,7 @@ Status: planning only. Confirmed requirements and proposed defaults below are di
 - Never silently merge similar names or switch identity based on fuzzy matches.
 - Exact normalized matches reuse the existing identity, not a duplicate. Enforce uniqueness server-side, including concurrent requests.
 - Show the active player prominently with an explicit switch-player control.
-- Known-player selection is not authentication. Choose trusted private access or PIN/access-link/login protection before deployment.
+- Confirmed: known-player selection without passwords. Anybody with access can select another identity; show the active name clearly.
 
 ## Proposed shared allocation
 
@@ -39,7 +42,7 @@ Status: planning only. Confirmed requirements and proposed defaults below are di
 - Shared liked and disliked galleries both offer Send back for review, individually or for a selected set; optional reason proposed.
 - Returning a photo starts a new pending review round, rather than directly flipping the old verdict. Preserve all earlier judgments.
 - Proposed default: pending re-review photos leave the current liked/disliked sets and liked CSV until judged again.
-- Proposed default: the next reviewer differs from both the previous judge and the return requester. Keep photos pending if no eligible reviewer is available; no silent fallback. This rule requires confirmation.
+- Confirmed: anyone may receive a returned photo in the next package, including the previous judge and the return requester. No reviewer-exclusion rules.
 - Repeated requests must not create duplicate review rounds or assignments.
 - Re-review can confirm or change the previous verdict. No majority voting or mandatory second approval unless separately agreed.
 
@@ -60,18 +63,19 @@ Status: planning only. Confirmed requirements and proposed defaults below are di
 - Columns: filename, relative_path; handle CSV escaping, Unicode, and spreadsheet formula injection.
 - Relative paths disambiguate duplicate basenames without revealing absolute server paths.
 - Preserve original files, aspect ratio, and orientation; generate smaller review previews.
-- No original-photo download/ZIP export in MVP.
+- No photo-download/ZIP feature. Browsers still load previews to display photos; CSV is the only export deliverable.
+- Index only the two approved watermarked subtrees, never sibling unwatermarked originals. Do not copy, move, edit, or re-download source photos.
 
 ## Access model
 
-Shared galleries/history are intentionally visible to participants. Active assignment and mutation permissions still require server-side checks. Username-only entry means someone can select another player's identity; attribution depends on trust. Use PINs, personal links, or login if that is unacceptable. Autocomplete never exposes credentials.
+Confirmed: no passwords for now. Shared galleries/history are visible to participants; player selection is trust-based, not proof of identity. Retain server-side assignment/version checks against accidental cross-tab conflicts, but these do not stop impersonation. Recommend LAN/VPN or another network boundary rather than unauthenticated public exposure. Autocomplete returns minimal identity metadata.
 
 ## Acceptance criteria
 
 - Known-player list, exact-name autocomplete, and similar-name suggestions avoid duplicates without silent merging.
 - Simultaneous allocation never assigns the same review round twice; all package sizes, smaller final packages, empty and reserved-only queues work.
 - Shared likes/dislikes are visible to other players; export reflects current shared likes.
-- Either a liked or disliked photo can be returned exactly once per active round, preserving history and following approved reviewer eligibility.
+- Either a liked or disliked photo can be returned exactly once per active round, preserving history and allowing any player to receive the next round.
 - Restart/refresh preserves packages, decisions, return requests, and undo history.
 - Stale browser actions and undo cannot overwrite newer rounds or other players' work.
 - Touch/mouse navigation remains distinct from decisions; retries/errors are explicit.
@@ -81,11 +85,10 @@ Shared galleries/history are intentionally visible to participants. Active assig
 
 ## Questions before implementation
 
-1. Trusted private name selection, or protected identities via PIN/access link/login?
-2. Must a re-reviewer differ from both previous judge and requester, or only from the previous judge?
-3. Confirm pending re-review removes the photo from current likes/dislikes and liked CSV until judged again.
-4. Deployment OS, LAN/public access, photo directory/formats, and expected simultaneous players?
-5. Is returned-first filename ordering acceptable, and how should abandoned reservations be released?
+1. Confirm pending re-review removes the photo from current likes/dislikes and liked CSV until judged again.
+2. LAN/VPN or public access, and expected simultaneous players? No passwords remains the agreed application scope.
+3. Is returned-first filename ordering acceptable, and how should abandoned reservations be released?
+4. How will the existing image folders be made available to the Linux LXC: mount or one-time transfer? No cloud re-download is planned.
 
 ## Out of scope initially
 

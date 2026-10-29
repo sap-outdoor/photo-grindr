@@ -5,8 +5,9 @@ Status: awaiting product/architecture approval. Only repository initialization a
 ## Stage 0: agree scope
 
 - Resolve questions in REQUIREMENTS.md.
-- Confirm photo directory/formats, deployment target, access model, and ordering.
-- Confirm independent re-review eligibility, pending-export policy, and abandoned-assignment release.
+- Confirm network exposure, simultaneous usage, ordering, pending-export policy, and abandoned-assignment release.
+- Confirmed: passwordless player selection; any player may rejudge returned photos; Windows development; Linux LXC on Proxmox production.
+- Metadata-only source discovery is complete; see PHOTO_LIBRARY.md. No ingestion, decoding, cloud download, or source modification has occurred.
 - Confirmed: shared workload and outcomes, checks and balances on both liked/disliked sets, known-player list and username autocomplete.
 - Record approved choices here or in architecture decision records.
 
@@ -25,9 +26,9 @@ Verify: fixture import/re-import, duplicate basenames, missing/corrupt photos, r
 
 - Implement known-player list, autocomplete/similarity suggestions, explicit identity selection, and race-safe username creation under the agreed access model.
 - Implement exclusive shared allocation, per-photo review rounds, judgments, return requests, audit history, safe undo, reservation release, resume, and completion.
-- Add shared liked CSV export, assignment ownership, and reviewer-eligibility checks.
+- Add shared liked CSV export, assignment ownership, and stale-round checks. No reviewer-exclusion filters and no image-download feature.
 
-Verify: exact and similar username suggestions without silent merging; concurrent username creation; all package sizes; exhausted and reserved-only queues; no double assignment under concurrency; returning liked and disliked photos; eligible reallocation; preserved history; pending CSV exclusion; safe undo across interleaved players; stale rounds; restart; retries; abandoned-package release; spreadsheet-safe CSV.
+Verify: exact and similar username suggestions without silent merging; concurrent username creation; all package sizes; exhausted and reserved-only queues; no double assignment under concurrency; returning liked and disliked photos; reallocation to any player, including previous judge and requester; preserved history; pending CSV exclusion; safe undo across interleaved players; stale rounds; restart; retries; abandoned-package release; spreadsheet-safe CSV.
 
 ## Stage 3: review interface
 
@@ -39,9 +40,9 @@ Verify: mouse and touch, swipe/click separation, portrait/landscape photos, resp
 
 ## Stage 4: end-to-end and deployment
 
-- Exercise the full journey with multiple players and real browser interaction, including simultaneous claims, identity suggestions, and the judge -> challenge -> independent re-review cycle.
+- Exercise the full journey with multiple players and real browser interaction, including simultaneous claims, identity suggestions, and the judge -> challenge -> unrestricted re-review cycle.
 - Run the actual library import and measure startup, preview generation, review latency, and concurrent saves.
-- Document production startup for the chosen OS, environment variables, backups/restores, and photo-library updates.
+- Document Windows development and Linux LXC production startup, environment variables, read-only photo mount/transfer, backups/restores, and library updates. Verify portable relative-path CSV behavior on both OSes.
 - Test restore into a separate data directory.
 
 Gate: real tests and manual browser checks pass; unresolved limitations are documented. Do not claim large-library performance before the real library is available.
@@ -56,6 +57,7 @@ Write failing automated tests before implementing backend behavior; test pure UI
 - docs/REQUIREMENTS.md
 - docs/ARCHITECTURE.md
 - docs/PLAN.md
+- docs/PHOTO_LIBRARY.md
 - .gitignore
 
 No application code, installed dependencies, or photo ingestion in this initial stage.
