@@ -6,7 +6,8 @@ Status: planning only. Confirmed requirements and proposed defaults below are di
 
 - Web app for existing server-local sports photos. Metadata inspection found 1,682 JPEGs in the two approved watermarked directories; see PHOTO_LIBRARY.md.
 - Windows development/testing; production Linux LXC on Proxmox.
-- No password protection for now; player names provide trust-based attribution.
+- Shared static entry PIN `2026`; no individual passwords. Player names remain trust-based attribution.
+- After 10 minutes without a player operation, release all their unanswered photo reservations; never discard saved judgments. Track last action per player, not session leases.
 - No photo-download/ZIP feature: export CSV for a separate local script to pick files.
 - Shared workload: players divide a common library, rather than each reviewing every photo independently.
 - Show known players. Username input autocompletes existing players and suggests similar names to avoid duplicate identities.
@@ -24,7 +25,7 @@ Status: planning only. Confirmed requirements and proposed defaults below are di
 - Never silently merge similar names or switch identity based on fuzzy matches.
 - Exact normalized matches reuse the existing identity, not a duplicate. Enforce uniqueness server-side, including concurrent requests.
 - Show the active player prominently with an explicit switch-player control.
-- Confirmed: known-player selection without passwords. Anybody with access can select another identity; show the active name clearly.
+- Confirmed: verify shared PIN `2026` before known-player selection. No individual passwords; anybody past the gate can select another identity. Show the active name clearly.
 
 ## Proposed shared allocation
 
@@ -33,7 +34,12 @@ Status: planning only. Confirmed requirements and proposed defaults below are di
 - Persist package membership/order; default to one unfinished package per player and resume it first.
 - Permit smaller final packages and distinguish an empty queue from work reserved by others.
 - Prioritize returned photos, then untouched photos; use stable filename order within each group.
-- Leaving early preserves progress. Provide explicit release of unanswered assignments; automatic reservation expiry remains undecided.
+- Leaving early preserves judgments. Automatically release unanswered assignments when server time reaches 10 minutes since that player's last accepted operation; mark the unfinished package expired and retain its history.
+- Record explicit operations: package allocation/resume, navigation, judgment, undo, gallery interaction, return requests, and CSV export. Use server UTC timestamps.
+- Do not renew reservations from passive polling, image loading/preloading, or unattended heartbeats. Activity is shared across that player's tabs/devices.
+- Check expiry before recording new activity: an operation after the deadline cannot revive the old assignment. Reject stale votes/undo and offer a fresh package.
+- Expired work is immediately eligible for the next allocation; perform cleanup transactionally before allocation/resume/mutations. No dedicated session table or per-session timer is needed. An optional periodic cleanup is not required for correctness.
+- Provide explicit release as a convenience. Saved likes/dislikes remain unchanged by expiry.
 
 ## Proposed checks-and-balances workflow
 
@@ -64,11 +70,12 @@ Status: planning only. Confirmed requirements and proposed defaults below are di
 - Relative paths disambiguate duplicate basenames without revealing absolute server paths.
 - Preserve original files, aspect ratio, and orientation; generate smaller review previews.
 - No photo-download/ZIP feature. Browsers still load previews to display photos; CSV is the only export deliverable.
-- Index only the two approved watermarked subtrees, never sibling unwatermarked originals. Do not copy, move, edit, or re-download source photos.
+- Deal only with watermarked files. Production root: `/srv/photo-grindr/photos/`, preserving photographer subfolders and filenames; database/cache: `/var/lib/photo-grindr/`.
+- Windows development reads the two approved source subtrees in place; do not copy, move, edit, or re-download them during planning. No unwatermarked mapping is needed. Deployment staging/mount is separate from app review behavior.
 
 ## Access model
 
-Confirmed: no passwords for now. Shared galleries/history are visible to participants; player selection is trust-based, not proof of identity. Retain server-side assignment/version checks against accidental cross-tab conflicts, but these do not stop impersonation. Recommend LAN/VPN or another network boundary rather than unauthenticated public exposure. Autocomplete returns minimal identity metadata.
+Confirmed: trusted group behind shared PIN `2026`, intended as a casual entry barrier, not individual authentication. Check the PIN on the server and gate pages, APIs, previews, and CSV, not just the home screen. Do not send the PIN to client JavaScript or place it in URLs. Remember successful entry in a signed browser cookie; this is separate from player inactivity and does not require database-backed login sessions. Keep CSRF and stale-assignment checks. The common PIN does not prevent identity switching; do not claim strong security. Basic attempt throttling is proposed.
 
 ## Acceptance criteria
 
@@ -76,7 +83,9 @@ Confirmed: no passwords for now. Shared galleries/history are visible to partici
 - Simultaneous allocation never assigns the same review round twice; all package sizes, smaller final packages, empty and reserved-only queues work.
 - Shared likes/dislikes are visible to other players; export reflects current shared likes.
 - Either a liked or disliked photo can be returned exactly once per active round, preserving history and allowing any player to receive the next round.
-- Restart/refresh preserves packages, decisions, return requests, and undo history.
+- Restart/refresh preserves packages, decisions, return requests, undo history, and player last-action timestamps; overdue reservations expire on the next relevant operation.
+- Test just before/at/after the 10-minute boundary, two devices sharing a player, passive requests not extending activity, and racing expiry versus save/allocation.
+- Direct API, image, and CSV access without PIN verification is blocked; wrong PINs do not unlock the app.
 - Stale browser actions and undo cannot overwrite newer rounds or other players' work.
 - Touch/mouse navigation remains distinct from decisions; retries/errors are explicit.
 - Missing/corrupt photos and duplicate basenames are handled; originals remain unchanged.
@@ -86,9 +95,9 @@ Confirmed: no passwords for now. Shared galleries/history are visible to partici
 ## Questions before implementation
 
 1. Confirm pending re-review removes the photo from current likes/dislikes and liked CSV until judged again.
-2. LAN/VPN or public access, and expected simultaneous players? No passwords remains the agreed application scope.
-3. Is returned-first filename ordering acceptable, and how should abandoned reservations be released?
-4. How will the existing image folders be made available to the Linux LXC: mount or one-time transfer? No cloud re-download is planned.
+2. Expected simultaneous players and eventual network exposure? Shared PIN and no personal passwords are agreed.
+3. Is returned-first filename ordering acceptable?
+4. Production photos will live under `/srv/photo-grindr/photos/`; mounting/staging the existing watermarked library is a deployment step, not a browser download feature.
 
 ## Out of scope initially
 

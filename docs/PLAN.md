@@ -5,8 +5,9 @@ Status: awaiting product/architecture approval. Only repository initialization a
 ## Stage 0: agree scope
 
 - Resolve questions in REQUIREMENTS.md.
-- Confirm network exposure, simultaneous usage, ordering, pending-export policy, and abandoned-assignment release.
-- Confirmed: passwordless player selection; any player may rejudge returned photos; Windows development; Linux LXC on Proxmox production.
+- Confirm network exposure, simultaneous usage, ordering, and pending-export policy.
+- Confirmed: shared entry PIN `2026`, no personal passwords; any player may rejudge returned photos; Windows development; Linux LXC on Proxmox production.
+- Confirmed: per-player last-action tracking releases unanswered reservations after 10 minutes; no session-based leases. Watermarked images only; production root `/srv/photo-grindr/photos/`.
 - Metadata-only source discovery is complete; see PHOTO_LIBRARY.md. No ingestion, decoding, cloud download, or source modification has occurred.
 - Confirmed: shared workload and outcomes, checks and balances on both liked/disliked sets, known-player list and username autocomplete.
 - Record approved choices here or in architecture decision records.
@@ -24,11 +25,11 @@ Verify: fixture import/re-import, duplicate basenames, missing/corrupt photos, r
 
 ## Stage 2: persistence and package engine
 
-- Implement known-player list, autocomplete/similarity suggestions, explicit identity selection, and race-safe username creation under the agreed access model.
-- Implement exclusive shared allocation, per-photo review rounds, judgments, return requests, audit history, safe undo, reservation release, resume, and completion.
+- Implement server-side PIN gate for pages/APIs/previews/CSV, signed entry/identity cookie, known-player list, autocomplete/similarity suggestions, and race-safe username creation. No database-backed login sessions.
+- Implement exclusive shared allocation, per-photo review rounds, judgments, return requests, audit history, safe undo, 10-minute per-player inactivity release, resume, and completion.
 - Add shared liked CSV export, assignment ownership, and stale-round checks. No reviewer-exclusion filters and no image-download feature.
 
-Verify: exact and similar username suggestions without silent merging; concurrent username creation; all package sizes; exhausted and reserved-only queues; no double assignment under concurrency; returning liked and disliked photos; reallocation to any player, including previous judge and requester; preserved history; pending CSV exclusion; safe undo across interleaved players; stale rounds; restart; retries; abandoned-package release; spreadsheet-safe CSV.
+Verify: exact and similar username suggestions without silent merging; concurrent username creation; all package sizes; exhausted and reserved-only queues; no double assignment under concurrency; returning liked and disliked photos; reallocation to any player, including previous judge and requester; preserved history; pending CSV exclusion; safe undo across interleaved players; stale rounds; restart; retries; abandoned-package release; before/at/after expiry boundaries; stale save versus reallocation races; active versus passive requests; shared-player multi-tab activity; PIN bypass attempts; spreadsheet-safe CSV.
 
 ## Stage 3: review interface
 
