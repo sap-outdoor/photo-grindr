@@ -74,6 +74,24 @@ Status: implemented and parent-verified. Localhost serves byte-identical updated
 - Actual effect: 250ms, mirrored ±10-degree rotation, opacity .85 to 0. It also applies consistently to Like/Dislike buttons and L/D shortcuts.
 - Parent reran 24 Python tests and 32 Node tests, JS syntax and whitespace checks. Mobile actions bottom remained 776.47px inside an 844px viewport. No page errors. Live event data was not used for destructive tests.
 
+## Direct pointer drag and progressive decision lighting
+
+Status: implemented and parent-tested with generated isolated fixtures; localhost asset verification and independent review are recorded below.
+
+- On mouse/touch pickup, the photo copy follows the active primary pointer; signed horizontal distance controls translation and bounded decorative rotation.
+- Left/red means Dislike, right/green means Like. Light only the stage surround and show a localized direction label; do not recolor the source photograph or rely on color alone.
+- Glow intensity increases continuously with distance and is clamped. No decision or database write occurs on pointer movement.
+- Preserve short edge taps for navigation and the existing horizontal swipe threshold. Short/vertical/cancelled gestures restore the photo without deciding.
+- On eligible release, hold the release pose while saving and continue the throw from that same pose only after server confirmation. Failed saves restore visuals and retain normal error/expiry behavior.
+- Handle pointercancel, lostpointercapture, Escape, secondary pointers, navigation, and rapid input without orphaned overlays or duplicate votes. Vertical touch panning remains available.
+- Keep buttons and keyboard alternatives. Under reduced motion, direct input tracking can remain, but skip decorative rotation, throw, and snap-back easing.
+- Parent reran 24 backend and 39 frontend tests. Isolated Chromium passed real mouse and CDP touch, deferred-save release continuity, 503/409/network failures, vertical pan cancellation, reduced motion, final-photo completion, and no overflow or page errors.
+- Visual review caught two issues before delivery: lighting must be directional rather than surround-wide, and must remain visible above the moving copy. Extended regressions failed first, then passed after a side-signed edge-light overlay was added. The glow is clipped to the stage edge; no image color filter is applied.
+- Release pose was verified at animation time zero: translate(105px, 7px) rotate(3.5deg), with identical geometry before and after server confirmation.
+- Browser tests use generated isolated fixtures, never live event votes. Independent main-interaction and edge-light reviews both passed without blockers; live JS/CSS were verified byte-identical to the tested files.
+
+References: W3C Pointer Events https://www.w3.org/TR/pointerevents3/ ; WCAG use of color https://www.w3.org/WAI/WCAG22/Understanding/use-of-color ; dragging alternatives https://www.w3.org/WAI/WCAG22/Understanding/dragging-movements . These guide implementation, not a blanket accessibility-conformance claim.
+
 ## Basis
 
 - Nielsen Norman Group, Aesthetic and Minimalist Design: https://www.nngroup.com/articles/aesthetic-minimalist-design/ — retain information serving the task and disclose secondary help on demand.

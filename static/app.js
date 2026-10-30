@@ -22,7 +22,7 @@ if (typeof document !== 'undefined') document.addEventListener('DOMContentLoaded
   const t = PhotoI18n.t;
   const text = (id, value, vars = {}) => PhotoI18n.bind($(id), value, vars);
   let noticeExpiryKey = null, clearToss = () => {};
-  window.addEventListener('pagehide', () => clearToss());
+  window.addEventListener('pagehide', () => { clearToss(); resetDrag(); });
   const seenExpiries = new Set();
   function notice(message, type = '', vars = {}, expiryKey = null) {
     noticeExpiryKey = expiryKey;
@@ -69,10 +69,11 @@ if (typeof document !== 'undefined') document.addEventListener('DOMContentLoaded
     renderHome();
     return reviewExpired;
   }
-  async function run(action, retryUndo = false) {
+  async function run(action, retryUndo = false, keepDrag = false) {
     if (busy) return;
     if (pendingUndo && !retryUndo) { notice('Undo outcome is unresolved. Retry Undo before another operation.', 'warning'); return; }
     clearToss();
+    if (!keepDrag) resetDrag();
     setBusy(true); notice('');
     try { await action(); }
     catch (error) {
@@ -88,12 +89,12 @@ if (typeof document !== 'undefined') document.addEventListener('DOMContentLoaded
     } finally { setBusy(false); }
   }
   function show(next) {
+    if (view !== next) resetDrag();
     if (view !== next) window.scrollTo({top:0, behavior:'instant'});
     view = next;
     for (const id of ['home','review','gallery']) $(id).hidden = id !== next;
     $('nav-operate').setAttribute('aria-current', next !== 'gallery' ? 'page' : 'false');
     $('nav-explore').setAttribute('aria-current', next === 'gallery' ? 'page' : 'false');
-    if (next !== 'review') pointer = null;
   }
   function renderHome() {
     if (state?.player) PhotoI18n.raw($('player-name'),state.player.username); else text('player-name','Choose your player');
@@ -173,7 +174,7 @@ if (typeof document !== 'undefined') document.addEventListener('DOMContentLoaded
     let animation;
     try {
       animation = paper.animate([
-        {transform:'translateX(0) rotate(0deg)', opacity:.85},
+        {transform:photo.pose || 'translateX(0) rotate(0deg)', opacity:photo.pose ? 1 : .85},
         {transform:`translateX(${(value === 'liked' ? 1 : -1) * (window.innerWidth + photo.width)}px) rotate(${value === 'liked' ? 10 : -10}deg)`, opacity:0}
       ], {duration:250, easing:'ease-out'});
     } catch (_) { layer.remove(); return; } // Decoration must never turn a saved decision into an error.
@@ -185,15 +186,16 @@ if (typeof document !== 'undefined') document.addEventListener('DOMContentLoaded
     animation.onfinish = cleanup; animation.oncancel = cleanup;
     clearToss = cancel;
   }
-  async function decide(value) {
-    if (view !== 'review' || !current()) return;
-    await run(async () => {
-      const item = current(), photo = capturePhoto();
+  async function decide(value, drag = null) {
+    if (busy || pendingUndo || view !== 'review' || !current()) return;
+    try { await run(async () => {
+      const item = current(), photo = drag?.photo || capturePhoto();
       const data = await api('/api/decision',{package_id:pkg.id,photo_id:item.id,value,version:item.version,request_id:crypto.randomUUID()});
+      resetDrag();
       pkg = data.package; renderReview();
       text('saved-state', 'Decision saved.');
       tossPhoto(photo, value);
-    });
+    }, false, !!drag); } finally { resetDrag(); }
   }
   async function undo() {
     await run(async () => {
@@ -289,15 +291,63 @@ if (typeof document !== 'undefined') document.addEventListener('DOMContentLoaded
   $('photo').addEventListener('error', () => { $('photo-error').hidden=false; });
   $('retry-photo').addEventListener('click', () => { if(current()) { $('photo-error').hidden=true; $('photo').src=current().preview_url; } });
   const stage=$('photo-stage');
-  stage.addEventListener('pointerdown', event => { if(busy || !event.isPrimary || event.button !== 0 || event.target.closest('button')) return; pointer={id:event.pointerId,x:event.clientX,y:event.clientY}; stage.setPointerCapture(event.pointerId); });
-  stage.addEventListener('pointercancel', () => {pointer=null;});
+  function resetDrag() {
+    const drag = pointer; pointer = null;
+    if (!drag) return;
+    PhotoI18n.raw(drag.label, ''); // Drop the transient node's translation binding too.
+    drag.layer.remove(); drag.label.remove();
+    $('photo').style.visibility = '';
+    stage.style.setProperty('--drag-strength','0');
+    try { if (stage.hasPointerCapture?.(drag.id)) stage.releasePointerCapture(drag.id); } catch (_) { /* Capture may already be lost. */ }
+  }
+  const reducedMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  function movePhoto(event) {
+    if (!pointer || pointer.released || pointer.id !== event.pointerId || busy) return;
+    const dx = event.clientX - pointer.x, dy = Math.max(-28, Math.min(28, (event.clientY - pointer.y) * .35));
+    const rotation = reducedMotion() ? 0 : Math.max(-7, Math.min(7, dx / 30));
+    pointer.photo.pose = `translate(${dx}px, ${dy}px) rotate(${rotation}deg)`;
+    pointer.paper.style.transform = pointer.photo.pose;
+    stage.style.setProperty('--drag-strength', String(Math.min(1, Math.abs(dx) / 160)));
+    stage.style.setProperty('--drag-color', dx < 0 ? '220, 66, 74' : '46, 166, 92');
+    stage.style.setProperty('--drag-side', dx < 0 ? '-1' : '1');
+    pointer.layer.style.setProperty('--drag-strength', String(Math.min(1, Math.abs(dx) / 160)));
+    pointer.layer.style.setProperty('--drag-color', dx < 0 ? '220, 66, 74' : '46, 166, 92');
+    pointer.layer.style.setProperty('--drag-side', dx < 0 ? '-1' : '1');
+    pointer.label.hidden = Math.abs(dx) < 8;
+    PhotoI18n.bind(pointer.label, dx < 0 ? 'Dislike' : 'Like');
+  }
+  stage.addEventListener('pointerdown', event => {
+    if(busy || pendingUndo || pointer || view !== 'review' || !current() || !event.isPrimary || event.button !== 0 || event.target.closest('button')) return;
+    const photo = capturePhoto(); if (!photo) return;
+    clearToss();
+    const layer = document.createElement('div'), paper = document.createElement('div'), image = document.createElement('img'), label = document.createElement('span');
+    layer.className = 'photo-toss-layer'; layer.setAttribute('aria-hidden','true');
+    paper.className = 'photo-toss-paper photo-drag-paper'; paper.setAttribute('aria-hidden','true');
+    image.src = photo.src; image.alt = ''; label.className = 'photo-drag-label'; label.setAttribute('aria-hidden','true'); label.hidden = true;
+    Object.assign(paper.style, {left:`${photo.left}px`,top:`${photo.top}px`,width:`${photo.width}px`,height:`${photo.height}px`});
+    const feedback = document.createElement('div'), stageRect = stage.getBoundingClientRect();
+    feedback.className = 'photo-drag-feedback';
+    Object.assign(feedback.style, {left:`${stageRect.left}px`,top:`${stageRect.top}px`,width:`${stageRect.width}px`,height:`${stageRect.height}px`});
+    paper.append(image); layer.append(paper, feedback); document.body.append(layer); stage.append(label);
+    $('photo').style.visibility = 'hidden';
+    pointer = {id:event.pointerId,x:event.clientX,y:event.clientY,photo,paper,layer,label};
+    stage.setPointerCapture(event.pointerId); movePhoto(event);
+  });
+  stage.addEventListener('pointermove', movePhoto);
+  const cancelPointer = event => { if (pointer && !pointer.released && pointer.id === event.pointerId) resetDrag(); };
+  stage.addEventListener('pointercancel', cancelPointer);
+  stage.addEventListener('lostpointercapture', cancelPointer);
+  stage.addEventListener('dragstart', event => event.preventDefault());
   stage.addEventListener('pointerup', event => {
-    if(!pointer || pointer.id!==event.pointerId || busy) {pointer=null;return;}
-    const start=pointer; pointer=null; const rect=stage.getBoundingClientRect();
+    if(!pointer || pointer.released || pointer.id!==event.pointerId || busy) return;
+    movePhoto(event);
+    const start=pointer; const rect=stage.getBoundingClientRect();
     const action=gesture({dx:event.clientX-start.x,dy:event.clientY-start.y,x:start.x-rect.left,width:rect.width});
-    if(action==='liked'||action==='disliked') decide(action); else if(action) navigate(action==='next'?1:-1);
+    if(action==='liked'||action==='disliked') { start.released = true; decide(action, start); }
+    else { resetDrag(); if(action) navigate(action==='next'?1:-1); }
   });
   document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && pointer && !pointer.released) { resetDrag(); event.preventDefault(); return; }
     if(busy || event.repeat || $('return-confirm').open || event.altKey || event.ctrlKey || event.metaKey || /INPUT|TEXTAREA|SELECT|BUTTON|A/.test(event.target.tagName) || event.target.isContentEditable) return;
     const key=event.key.toLowerCase();
     if(view==='review' && key==='u' && state?.player) { event.preventDefault(); undo(); }

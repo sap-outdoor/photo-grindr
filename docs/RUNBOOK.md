@@ -43,7 +43,7 @@ The shared PIN is only a casual gate. It is verified server-side; entry and sele
 - Decision mode shows only unanswered photos and a prominent remaining count. Arrows skip answered items; Undo brings the restored unanswered photo back. Like/Dislike and Undo/U only operate in decision mode, not home/gallery.
 - Home puts package/player actions first. Instructions including the Tinder comparison are in collapsed Jak to funguje / How it works help.
 - Gallery filters are Vybrané / Zamítnuté (Selected / Rejected). CSV export is in the gallery. Bulk controls appear when selecting photos; the general gallery Undo was removed. See UX_CLEANUP.md for verified geometry and scope.
-- L / Like / right swipe records liked; D / Dislike / left swipe records disliked. After server confirmation, a translucent paper copy of the old photo briefly flies toward that side; reduced-motion preference skips this decoration. Navigation and Undo do not throw photos.
+- L / Like / right swipe records liked; D / Dislike / left swipe records disliked. Drag with a finger or mouse to move the photo directly; left/red and right/green edge feedback strengthens with distance and includes a text label. Short/cancelled gestures reset without voting. Eligible release holds its pose while saving, then continues outward from that exact pose after confirmation. Buttons/keys still toss from center. Reduced-motion preference keeps direct tracking but skips decorative rotation/toss. Navigation and Undo do not throw photos.
 - Arrow keys, Previous/Next, and edge clicks navigate without votes. U / Undo reverses the latest eligible action.
 - After 10 minutes without a player operation, unanswered assignments expire; saved judgments stay saved. Returning users receive a package-expired notice and can request fresh work.
 - Passive polls/previews do not renew activity; all devices choosing the same player share the activity clock.
@@ -61,7 +61,7 @@ node --check static/app.js
 uv pip check --python .venv/Scripts/python.exe
 ```
 
-Observed after expiry/Explore recovery and footer changes: 24 backend tests passed; 32 frontend/interaction tests passed after UX cleanup and paper-photo motion; syntax checks passed for app.js and i18n.js; installed dependencies compatible. Tests use generated fixtures and isolated databases, not event decisions.
+Observed after expiry/Explore recovery and footer changes: 24 backend tests passed; 39 frontend/interaction tests passed after UX cleanup, paper-photo motion, and direct pointer dragging; syntax checks passed for app.js and i18n.js; installed dependencies compatible. Tests use generated fixtures and isolated databases, not event decisions.
 
 Parent Chromium check on the running localhost server verified wrong/correct PIN flow; denied direct API, preview, and CSV access before entry; actual total 1,682; a real JPEG preview returned successfully; 390px mobile viewport without horizontal overflow; no page JavaScript errors. These parent checks did not create player identities or cast votes in event data.
 

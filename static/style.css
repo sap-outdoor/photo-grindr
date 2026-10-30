@@ -16,6 +16,11 @@
 
 button,input{border-color:#718795}.primary,.decision.like,.decision.dislike{border-color:currentColor}.photo-error button:focus-visible{outline-color:var(--lime)}
 
+/* Direction feedback lights the canvas surround, never filters the photo. */
+.photo-stage{--drag-strength:0;--drag-side:1;--drag-color:46,166,92;box-shadow:inset calc(var(--drag-side) * -30px) 0 32px -12px rgba(var(--drag-color),var(--drag-strength));touch-action:pan-y}
+.photo-drag-feedback{position:absolute;z-index:1;border-radius:8px;pointer-events:none;box-shadow:inset calc(var(--drag-side) * -30px) 0 32px -12px rgba(var(--drag-color),var(--drag-strength))}
+.photo-drag-paper{will-change:transform}
+.photo-drag-label{position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:21;pointer-events:none;padding:5px 12px;border-radius:8px;background:var(--panel);color:var(--ink);font-weight:750;box-shadow:0 2px 12px #0004}
 /* A viewport-clipped, inert paper copy; never changes the judging image. */
 .photo-toss-layer{position:fixed;inset:0;overflow:hidden;pointer-events:none;z-index:20;contain:strict}
 .photo-toss-paper{position:absolute;box-sizing:content-box;border:5px solid #fff;border-bottom-width:12px;margin:-5px;box-shadow:0 8px 22px #0004;pointer-events:none}

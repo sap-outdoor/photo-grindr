@@ -98,7 +98,7 @@ function undoBrowser({loseResponse = true, loseRefresh = false, review = false, 
  const element = id => {
   if (!elements.has(id)) elements.set(id, {id, hidden:false, disabled:false, textContent:'', value:'Alice',
    classList:{toggle(){}, add(){}}, children:[], listeners:{}, addEventListener(name, fn){this.listeners[name]=fn;},
-   attrs:{}, setAttribute(name,value){this.attrs[name]=value;}, getAttribute(name){return this.attrs[name] || '';}, removeAttribute(name){delete this.attrs[name]; if(name==='src') this.src='';}, replaceChildren(){this.children=[];}, append(...children){this.children.push(...children);}, focus(){}, showModal(){this.open=true;}, close(){this.open=false;}, setPointerCapture(){}, style:{}, naturalWidth:400, naturalHeight:300, complete:true, remove(){this.removed=true;}, getBoundingClientRect(){return {left:20,top:150,width:400,height:300};}, animate:animationAPI ? function(frames,options){const animation={node:this,frames,options,cancel(){this.cancelled=true;this.oncancel?.();}}; animations.push(animation);return animation;} : undefined});
+   attrs:{}, setAttribute(name,value){this.attrs[name]=value;}, getAttribute(name){return this.attrs[name] || '';}, removeAttribute(name){delete this.attrs[name]; if(name==='src') this.src='';}, replaceChildren(){this.children=[];}, append(...children){this.children.push(...children);}, focus(){}, showModal(){this.open=true;}, close(){this.open=false;}, setPointerCapture(){}, style:{setProperty(name,value){this[name]=value;}}, naturalWidth:400, naturalHeight:300, complete:true, remove(){this.removed=true;}, getBoundingClientRect(){return {left:20,top:150,width:400,height:300};}, animate:animationAPI ? function(frames,options){const animation={node:this,frames,options,cancel(){this.cancelled=true;this.oncancel?.();}}; animations.push(animation);return animation;} : undefined});
   return elements.get(id);
  };
  const packageState = () => ({id:1,status:'active',position,answered,total:review?4:2,items:(review?decisions:[0,1].map(id=>id<answered?'liked':null)).map((decision,id)=>({id,version:1,filename:`${id}.jpg`,relative_path:`${id}.jpg`,preview_url:`/${id}`,decision}))});
@@ -115,7 +115,7 @@ function undoBrowser({loseResponse = true, loseRefresh = false, review = false, 
    Object.assign(serverState,{package:null,expired:true,expired_package_id:1});
    return {ok:false,status:409,json:async()=>({code:'expired',error:'Package expired.'})};
   }
-  if (review && path === '/api/decision') { if(decisionGate) await decisionGate; if(failDecision) return {ok:false,status:failDecision,json:async()=>({error:'Not saved'})}; decisions[body.photo_id]=body.value; answered++; return {ok:true,status:200,json:async()=>({package:packageState(),complete:answered===4})}; }
+  if (review && path === '/api/decision') { if(decisionGate) await decisionGate; if(failDecision==='network') throw new TypeError('Network unavailable'); if(failDecision) return {ok:false,status:failDecision,json:async()=>({error:'Not saved'})}; decisions[body.photo_id]=body.value; answered++; return {ok:true,status:200,json:async()=>({package:packageState(),complete:answered===4})}; }
   if (path === '/api/undo') {
    undoCalls++;
    if (!replays.has(body.request_id)) { answered--; if(review) {decisions[3]=null; position=3;} replays.set(body.request_id,{package:packageState()}); }
@@ -482,6 +482,94 @@ test('failed saves, expiry, navigation, Undo and galleries never toss', async ()
  await browser.click('undo'); await browser.click('nav-explore'); await browser.click('like'); await browser.click('dislike');
  browser.events.keydown({key:'l',target:{tagName:'BODY'},preventDefault(){}});await browser.settle();
  assert.equal(browser.animations.length,0);
+});
+
+function dragEvent(x=200,y=250,id=1) {return {isPrimary:true,button:0,pointerId:id,clientX:x,clientY:y,target:{closest:()=>null}};}
+test('pickup immediately copies the photo; pointermove follows signed displacement with mirrored clamped surround glow', async () => {
+ const b=undoBrowser({review:true}); await b.settle(); await b.click('resume');
+ const s=b.element('photo-stage'); s.listeners.pointerdown(dragEvent());
+ assert.equal(b.ghosts().length,1); assert.equal(b.element('photo').style.visibility,'hidden');
+ const paper=b.ghosts()[0].children[0]; assert.equal(paper.attrs['aria-hidden'],'true');
+ const levels=[];
+ for(const x of [220,255,310,1200]) {s.listeners.pointermove(dragEvent(x,270)); levels.push(Number(s.style['--drag-strength'])); assert.match(paper.style.transform,new RegExp(`translate\\(${x-200}px, 7px\\)`));}
+ assert.ok(levels[0]>0 && levels[1]>levels[0] && levels[2]>levels[1]); assert.equal(levels[3],1);
+ s.listeners.pointermove(dragEvent(-800,270)); assert.equal(Number(s.style['--drag-strength']),1); assert.equal(s.style['--drag-color'],'220, 66, 74');
+ assert.equal(s.style['--drag-side'],'-1', 'left drag must light the left edge, not the whole frame');
+ assert.equal(b.ghosts()[0].children[1]?.className,'photo-drag-feedback', 'edge lighting must remain visible above the moving copy');
+ assert.equal(b.ghosts()[0].style['--drag-side'],'-1');
+ assert.equal(s.children.at(-1).textContent,'Nelíbí se');
+ s.listeners.pointermove(dragEvent(1200,270)); assert.equal(s.style['--drag-color'],'46, 166, 92');
+ assert.equal(s.style['--drag-side'],'1');
+ const css=require('node:fs').readFileSync(require.resolve('./style.css'),'utf8');
+ assert.match(css,/inset calc\(var\(--drag-side\) \* -30px\) 0 32px -12px/);
+ assert.equal(s.children.at(-1).textContent,'Líbí se'); assert.equal(b.animations.length,0);
+});
+
+test('release freezes the pose until confirmation then tosses exactly from that pose once', async () => {
+ let release; const gate=new Promise(r=>release=r);
+ const b=undoBrowser({review:true,decisionGate:gate}); await b.settle(); await b.click('resume');
+ const s=b.element('photo-stage'); s.listeners.pointerdown(dragEvent()); s.listeners.pointermove(dragEvent(300,270));
+ const pose=b.ghosts()[0].children[0].style.transform;
+ s.listeners.pointerup(dragEvent(300,270)); s.listeners.pointerup(dragEvent(300,270)); s.listeners.lostpointercapture?.(dragEvent());
+ await b.settle(); assert.equal(b.ghosts().length,1); assert.equal(b.ghosts()[0].children[0].style.transform,pose);
+ assert.equal(b.animations.length,0); assert.equal(b.calls.filter(c=>c.path==='/api/decision').length,1);
+ release(); await b.settle(); await b.settle();
+ assert.equal(b.animations.length,1); assert.equal(b.animations[0].frames[0].transform,pose);
+ assert.equal(b.ghosts().length,1); assert.equal(b.element('photo').style.visibility,''); assert.equal(b.element('photo').src,'/3');
+ assert.equal(Number(s.style['--drag-strength']),0);
+});
+
+test('cancel, lost capture, Escape, short/vertical release, page exit and view changes clear pickup without a vote', async () => {
+ for(const action of ['pointercancel','lostpointercapture','Escape','short','vertical','pagehide','nav-explore','next']) {
+  const b=undoBrowser({review:true}); await b.settle(); await b.click('resume'); const s=b.element('photo-stage');
+  s.listeners.pointerdown(dragEvent()); s.listeners.pointermove(dragEvent(220,260));
+  if(action==='Escape') b.events.keydown({key:'Escape',preventDefault(){}});
+  else if(action==='pagehide') b.events.pagehide();
+  else if(action==='short'||action==='vertical') s.listeners.pointerup(dragEvent(action==='short'?220:270,action==='short'?260:350));
+  else if(s.listeners[action]) s.listeners[action](dragEvent()); else await b.click(action);
+  await b.settle(); assert.equal(b.ghosts().length,0,action); assert.equal(b.element('photo').style.visibility,'',action);
+  assert.equal(Number(s.style['--drag-strength']),0); assert.equal(b.calls.filter(c=>c.path==='/api/decision').length,0,action);
+ }
+});
+
+test('secondary pointers cannot take over or release a pickup; save input cannot create another', async () => {
+ let release; const b=undoBrowser({review:true,decisionGate:new Promise(r=>release=r)}); await b.settle(); await b.click('resume'); const s=b.element('photo-stage');
+ s.listeners.pointerdown({...dragEvent(),isPrimary:false}); assert.equal(b.ghosts().length,0);
+ s.listeners.pointerdown({...dragEvent(),button:2}); assert.equal(b.ghosts().length,0);
+ s.listeners.pointerdown(dragEvent()); const paper=b.ghosts()[0].children[0];
+ s.listeners.pointerdown(dragEvent(0,0,2)); s.listeners.pointermove(dragEvent(500,0,2)); s.listeners.pointerup(dragEvent(500,0,2)); s.listeners.pointercancel(dragEvent(0,0,2));
+ assert.equal(b.ghosts().length,1); assert.equal(paper.style.transform,'translate(0px, 0px) rotate(0deg)');
+ s.listeners.pointerup(dragEvent(300)); s.listeners.pointerdown(dragEvent()); await b.click('like');
+ b.events.keydown({key:'d',target:{tagName:'BODY'},preventDefault(){}}); await b.settle();
+ assert.equal(b.calls.filter(c=>c.path==='/api/decision').length,1); assert.equal(b.ghosts().length,1);
+ release(); await b.settle(); await b.settle(); assert.equal(b.ghosts().length,1);
+});
+
+test('failed drag saves restore the photo and error without toss, including network errors and expiry', async () => {
+ for(const failDecision of [503,409,'network','expired']) {
+  const serverState={player:{id:1,username:'Alice'},package:{id:1,status:'active',answered:2,total:4},counts:{}};
+  const b=undoBrowser({review:true,failDecision:failDecision==='expired'?false:failDecision,expireDecision:failDecision==='expired',serverState:failDecision==='expired'?serverState:null});
+  await b.settle(); await b.click('resume'); const s=b.element('photo-stage'); s.listeners.pointerdown(dragEvent()); s.listeners.pointerup(dragEvent(100));
+  await b.settle(); await b.settle(); assert.equal(b.ghosts().length,0); assert.equal(b.animations.length,0);
+  assert.equal(b.element('photo').style.visibility,''); assert.equal(Number(s.style['--drag-strength']),0); assert.equal(b.answered(),2); assert.equal(b.element('notice').hidden,false);
+ }
+});
+
+test('reduced-motion pickup tracks directly without rotation, easing or decorative toss', async () => {
+ const b=undoBrowser({review:true,reducedMotion:true}); await b.settle(); await b.click('resume'); const s=b.element('photo-stage');
+ s.listeners.pointerdown(dragEvent()); s.listeners.pointermove(dragEvent(320,500));
+ assert.equal(b.ghosts()[0].children[0].style.transform,'translate(120px, 28px) rotate(0deg)');
+ s.listeners.pointercancel(dragEvent()); assert.equal(b.animations.length,0); assert.equal(b.ghosts().length,0);
+ s.listeners.pointerdown(dragEvent()); s.listeners.pointermove(dragEvent(300,270)); s.listeners.pointerup(dragEvent(300,270)); await b.settle(); await b.settle();
+ assert.equal(b.animations.length,0); assert.equal(b.ghosts().length,0); assert.equal(b.element('photo').src,'/3');
+});
+
+test('transient labels translate live and release their language binding when pickup ends', async () => {
+ const b=undoBrowser({review:true}); await b.settle(); await b.click('resume'); const s=b.element('photo-stage');
+ s.listeners.pointerdown(dragEvent()); s.listeners.pointermove(dragEvent(300)); const label=s.children.at(-1);
+ assert.equal(label.textContent,'Líbí se'); await b.click('language-toggle'); assert.equal(label.textContent,'Like');
+ s.listeners.pointercancel(dragEvent()); assert.equal(label.textContent,'');
+ await b.click('language-toggle'); assert.equal(label.textContent,'','removed transient nodes must not retain translation bindings');
 });
 
 test('remaining counter uses Czech and English count grammar', () => {
