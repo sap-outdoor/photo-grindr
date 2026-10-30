@@ -21,7 +21,8 @@ if (typeof document !== 'undefined') document.addEventListener('DOMContentLoaded
   const number = n => Number(n || 0).toLocaleString(PhotoI18n.language === 'en' ? 'en-US' : 'cs-CZ');
   const t = PhotoI18n.t;
   const text = (id, value, vars = {}) => PhotoI18n.bind($(id), value, vars);
-  let noticeExpiryKey = null;
+  let noticeExpiryKey = null, clearToss = () => {};
+  window.addEventListener('pagehide', () => clearToss());
   const seenExpiries = new Set();
   function notice(message, type = '', vars = {}, expiryKey = null) {
     noticeExpiryKey = expiryKey;
@@ -71,6 +72,7 @@ if (typeof document !== 'undefined') document.addEventListener('DOMContentLoaded
   async function run(action, retryUndo = false) {
     if (busy) return;
     if (pendingUndo && !retryUndo) { notice('Undo outcome is unresolved. Retry Undo before another operation.', 'warning'); return; }
+    clearToss();
     setBusy(true); notice('');
     try { await action(); }
     catch (error) {
@@ -151,13 +153,46 @@ if (typeof document !== 'undefined') document.addEventListener('DOMContentLoaded
     if (position === pkg.position) return;
     await run(async () => { const data = await api('/api/navigate', {package_id:pkg.id,position}); pkg = data.package; renderReview(); });
   }
+  function capturePhoto() {
+    const photo = $('photo'), rect = photo.getBoundingClientRect();
+    if (!photo.complete || !photo.naturalWidth || !photo.naturalHeight || !rect.width || !rect.height) return null;
+    const scale = Math.min(rect.width / photo.naturalWidth, rect.height / photo.naturalHeight);
+    const width = photo.naturalWidth * scale;
+    const height = photo.naturalHeight * scale;
+    return {src:photo.currentSrc || photo.src, left:rect.left + (rect.width - width) / 2, top:rect.top + (rect.height - height) / 2, width, height};
+  }
+  function tossPhoto(photo, value) {
+    if (!photo) return;
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+    const layer = document.createElement('div'), paper = document.createElement('div'), image = document.createElement('img');
+    if (!paper.animate) return;
+    layer.className = 'photo-toss-layer'; layer.setAttribute('aria-hidden', 'true');
+    paper.className = 'photo-toss-paper'; paper.setAttribute('aria-hidden', 'true'); image.src = photo.src; image.alt = '';
+    Object.assign(paper.style, {left:`${photo.left}px`, top:`${photo.top}px`, width:`${photo.width}px`, height:`${photo.height}px`});
+    paper.append(image); layer.append(paper); document.body.append(layer);
+    let animation;
+    try {
+      animation = paper.animate([
+        {transform:'translateX(0) rotate(0deg)', opacity:.85},
+        {transform:`translateX(${(value === 'liked' ? 1 : -1) * (window.innerWidth + photo.width)}px) rotate(${value === 'liked' ? 10 : -10}deg)`, opacity:0}
+      ], {duration:250, easing:'ease-out'});
+    } catch (_) { layer.remove(); return; } // Decoration must never turn a saved decision into an error.
+    const cleanup = () => {
+      layer.remove();
+      if (clearToss === cancel) clearToss = () => {};
+    };
+    const cancel = () => { animation.cancel(); cleanup(); };
+    animation.onfinish = cleanup; animation.oncancel = cleanup;
+    clearToss = cancel;
+  }
   async function decide(value) {
     if (view !== 'review' || !current()) return;
     await run(async () => {
-      const item = current();
+      const item = current(), photo = capturePhoto();
       const data = await api('/api/decision',{package_id:pkg.id,photo_id:item.id,value,version:item.version,request_id:crypto.randomUUID()});
       pkg = data.package; renderReview();
       text('saved-state', 'Decision saved.');
+      tossPhoto(photo, value);
     });
   }
   async function undo() {

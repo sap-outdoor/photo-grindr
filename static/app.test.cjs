@@ -88,23 +88,23 @@ test('navigation clamps at either end and handles an empty package', () => {
  assert.equal(nextPosition(0,1,0),0);
 });
 
-function undoBrowser({loseResponse = true, loseRefresh = false, review = false, cookie = '', startPosition = 0, initialDecisions = null, failNavigation = false, serverState = null, storage = new Map(), expireDecision = false} = {}) {
+function undoBrowser({loseResponse = true, loseRefresh = false, review = false, cookie = '', startPosition = 0, initialDecisions = null, failNavigation = false, serverState = null, storage = new Map(), expireDecision = false, decisionGate = null, failDecision = false, reducedMotion = false, animationAPI = true} = {}) {
  const vm = require('node:vm');
  const fs = require('node:fs');
- const elements = new Map(), calls = [], replays = new Map();
+ const elements = new Map(), calls = [], replays = new Map(), animations = [];
  let ready = [], answered = 2, serial = 0, undoCalls = 0, position = startPosition;
  const decisions = initialDecisions || ['liked', null, 'disliked', null];
  if (review) answered=decisions.filter(value=>value!=null).length;
  const element = id => {
   if (!elements.has(id)) elements.set(id, {id, hidden:false, disabled:false, textContent:'', value:'Alice',
    classList:{toggle(){}, add(){}}, children:[], listeners:{}, addEventListener(name, fn){this.listeners[name]=fn;},
-   attrs:{}, setAttribute(name,value){this.attrs[name]=value;}, getAttribute(name){return this.attrs[name] || '';}, removeAttribute(name){delete this.attrs[name]; if(name==='src') this.src='';}, replaceChildren(){this.children=[];}, append(...children){this.children.push(...children);}, focus(){}, showModal(){this.open=true;}, close(){this.open=false;}, setPointerCapture(){}, getBoundingClientRect(){return {left:0,width:400};}});
+   attrs:{}, setAttribute(name,value){this.attrs[name]=value;}, getAttribute(name){return this.attrs[name] || '';}, removeAttribute(name){delete this.attrs[name]; if(name==='src') this.src='';}, replaceChildren(){this.children=[];}, append(...children){this.children.push(...children);}, focus(){}, showModal(){this.open=true;}, close(){this.open=false;}, setPointerCapture(){}, style:{}, naturalWidth:400, naturalHeight:300, complete:true, remove(){this.removed=true;}, getBoundingClientRect(){return {left:20,top:150,width:400,height:300};}, animate:animationAPI ? function(frames,options){const animation={node:this,frames,options,cancel(){this.cancelled=true;this.oncancel?.();}}; animations.push(animation);return animation;} : undefined});
   return elements.get(id);
  };
  const packageState = () => ({id:1,status:'active',position,answered,total:review?4:2,items:(review?decisions:[0,1].map(id=>id<answered?'liked':null)).map((decision,id)=>({id,version:1,filename:`${id}.jpg`,relative_path:`${id}.jpg`,preview_url:`/${id}`,decision}))});
  const events={};
  const document = {cookie, documentElement:{lang:'cs'}, getElementById:element, createElement:tag=>{const node=element(`created-${elements.size}`);node.tagName=tag.toUpperCase();return node;}, querySelector:()=>({content:'csrf'}), querySelectorAll:selector=>selector==='[data-size]' || selector==='.gallery-select input' ? [] : [...elements.values()],
-  body:{classList:{toggle(){}}}, addEventListener(name, fn){if(name==='DOMContentLoaded') ready.push(fn); else events[name]=fn;}};
+  body:{children:[],append(node){this.children.push(node);},classList:{toggle(){}}}, addEventListener(name, fn){if(name==='DOMContentLoaded') ready.push(fn); else events[name]=fn;}};
  const fetch = async (path, options) => {
   const body = options.body && JSON.parse(options.body); calls.push({path,body});
   if (path === '/api/activity' || path === '/api/return') return {ok:true,status:200,json:async()=>({})};
@@ -115,7 +115,7 @@ function undoBrowser({loseResponse = true, loseRefresh = false, review = false, 
    Object.assign(serverState,{package:null,expired:true,expired_package_id:1});
    return {ok:false,status:409,json:async()=>({code:'expired',error:'Package expired.'})};
   }
-  if (review && path === '/api/decision') { decisions[body.photo_id]=body.value; answered++; return {ok:true,status:200,json:async()=>({package:packageState(),complete:answered===4})}; }
+  if (review && path === '/api/decision') { if(decisionGate) await decisionGate; if(failDecision) return {ok:false,status:failDecision,json:async()=>({error:'Not saved'})}; decisions[body.photo_id]=body.value; answered++; return {ok:true,status:200,json:async()=>({package:packageState(),complete:answered===4})}; }
   if (path === '/api/undo') {
    undoCalls++;
    if (!replays.has(body.request_id)) { answered--; if(review) {decisions[3]=null; position=3;} replays.set(body.request_id,{package:packageState()}); }
@@ -129,11 +129,11 @@ function undoBrowser({loseResponse = true, loseRefresh = false, review = false, 
   throw new Error(`Unexpected intervening request: ${path}`);
  };
  const sessionStorage={getItem:key=>storage.get(key) ?? null,setItem:(key,value)=>storage.set(key,String(value))};
- const context = vm.createContext({document,fetch,sessionStorage,crypto:{randomUUID:()=>`undo-${++serial}`},window:{scrollTo(){}},Image:class {}});
+ const context = vm.createContext({document,fetch,sessionStorage,crypto:{randomUUID:()=>`undo-${++serial}`},window:{scrollTo(){},innerWidth:1000,matchMedia:()=>({matches:reducedMotion}),addEventListener(name,fn){events[name]=fn;}},Image:class {},setTimeout,clearTimeout});
  if(fs.existsSync(require('node:path').join(__dirname,'i18n.js'))) vm.runInContext(fs.readFileSync(require.resolve('./i18n.js'),'utf8'),context);
  vm.runInContext(fs.readFileSync(require.resolve('./app.js'),'utf8'),context);
  ready.forEach(fn=>fn());
- return {element,calls,document,events,answered:()=>answered,click:async id=>{await element(id).listeners.click();},settle:()=>new Promise(resolve=>setImmediate(resolve))};
+ return {element,calls,document,events,animations,ghosts:()=>document.body.children.filter(node=>!node.removed),answered:()=>answered,click:async id=>{await element(id).listeners.click();},settle:()=>new Promise(resolve=>setImmediate(resolve))};
 }
 
 test('Undo retries the same committed request after a lost response, blocking intervening operations', async () => {
@@ -397,6 +397,91 @@ test('expiry dismiss control cannot hide errors, conflicts, saving or unresolved
  assert.match(browser.element('notice-message').textContent,/Výsledek vrácení/);
  const count=browser.calls.length; await browser.click('language-toggle');
  assert.equal(browser.calls.length,count); assert.match(browser.element('notice-message').textContent,/Undo outcome is unresolved/);
+});
+
+test('committed Like tosses the captured old photo right only after saving, without awaiting motion', async () => {
+ let release; const decisionGate=new Promise(resolve=>{release=resolve;});
+ const browser=undoBrowser({review:true,loseResponse:false,decisionGate}); await browser.settle(); await browser.click('resume');
+ const saving=browser.click('like'); await browser.settle();
+ assert.equal(browser.animations.length,0); assert.equal(browser.element('photo').src,'/1');
+ release(); await saving; await browser.settle();
+ assert.equal(browser.animations.length,1);
+ const {node,frames,options}=browser.animations[0];
+ assert.equal(node.children[0].src,'/1'); assert.equal(node.attrs['aria-hidden'],'true');
+ assert.equal(node.style.left,'20px'); assert.equal(node.style.top,'150px');
+ assert.match(frames[1].transform,/translateX\([1-9]/);
+ assert.equal(frames[0].opacity,.85); assert.equal(frames[1].opacity,0);
+ assert.ok(options.duration>=220 && options.duration<=280);
+ assert.equal(browser.element('photo').src,'/3'); assert.equal(browser.element('like').disabled,false);
+});
+
+test('swipes, decision buttons and L/D share committed mirrored toss directions, including the last photo', async () => {
+ for(const input of ['swipe','button','key']) {
+  const browser=undoBrowser({review:true,loseResponse:false}); await browser.settle(); await browser.click('resume');
+  for(const [value,sign] of [['liked',1],['disliked',-1]]) {
+   if(input==='button') await browser.click(sign===1?'like':'dislike');
+   if(input==='key') browser.events.keydown({key:sign===1?'l':'d',target:{tagName:'BODY'},preventDefault(){}});
+   if(input==='swipe') {const stage=browser.element('photo-stage'); stage.listeners.pointerdown({isPrimary:true,button:0,pointerId:1,clientX:200,clientY:0,target:{closest:()=>null}}); stage.listeners.pointerup({pointerId:1,clientX:200+sign*100,clientY:0});}
+   await browser.settle();
+   const animation=browser.animations.at(-1);
+   assert.ok(animation); assert.match(animation.frames[1].transform,sign===1?/translateX\([1-9].*rotate\(10deg\)/:/translateX\(-[1-9].*rotate\(-10deg\)/);
+  }
+  assert.equal(browser.element('photo-stage').hidden,true);
+  assert.equal(browser.animations.at(-1).node.children[0].src,'/3');
+  assert.equal(browser.element('complete-card').hidden,false);
+ }
+});
+
+test('reduced motion and missing animation API save normally with no ghost', async () => {
+ for(const options of [{reducedMotion:true},{animationAPI:false}]) {
+  const browser=undoBrowser({review:true,...options}); await browser.settle(); await browser.click('resume'); await browser.click('like');
+  assert.equal(browser.ghosts().length,0); assert.equal(browser.animations.length,0);
+  assert.equal(browser.element('photo').src,'/3'); assert.equal(browser.element('like').disabled,false);
+  assert.equal(browser.element('notice').hidden,true);
+ }
+});
+
+test('toss cleanup handles finish, cancel, fast decisions, navigation, Undo and page exit', async () => {
+ for(const action of ['finish','cancel','fast','next','nav-explore','undo','pagehide']) {
+  const browser=undoBrowser({review:true,loseResponse:false,initialDecisions:[null,null,null,null]}); await browser.settle(); await browser.click('resume'); await browser.click('like');
+  const first=browser.animations[0]; assert.equal(browser.ghosts().length,1);
+  if(action==='finish') first.onfinish();
+  else if(action==='cancel') first.cancel();
+  else if(action==='pagehide') browser.events.pagehide();
+  else await browser.click(action==='fast'?'dislike':action);
+  assert.equal(browser.ghosts().length,action==='fast'?1:0,action);
+  if(action==='fast') {assert.equal(first.cancelled,true); first.onfinish?.(); assert.equal(browser.ghosts().length,1); browser.animations.at(-1).onfinish(); assert.equal(browser.ghosts().length,0);}
+ }
+});
+
+test('unavailable photo or failed animation never leaves a ghost or reports a saved decision as failed', async () => {
+ for(const unavailable of [true,false]) {
+  const browser=undoBrowser({review:true}); await browser.settle(); await browser.click('resume');
+  if(unavailable) {browser.element('photo').naturalWidth=0; browser.element('photo').naturalHeight=0;}
+  else {const create=browser.document.createElement; browser.document.createElement=tag=>{const el=create(tag); el.animate=()=>{throw new Error('Animation unavailable');};return el;};}
+  await browser.click('like');
+  assert.equal(browser.ghosts().length,0); assert.equal(browser.element('notice').hidden,true);
+  assert.equal(browser.element('photo').src,'/3');
+ }
+});
+
+test('failed saves, expiry, navigation, Undo and galleries never toss', async () => {
+ for(const failDecision of [503,409]) {
+  const browser=undoBrowser({review:true,failDecision}); await browser.settle(); await browser.click('resume'); await browser.click('dislike');
+  assert.equal(browser.animations.length,0); assert.equal(browser.element('photo').src,'/1'); assert.equal(browser.answered(),2);
+ }
+ const serverState={player:{id:1,username:'Alice'},package:null,counts:{}};
+ const expired=undoBrowser({review:true,expireDecision:true,serverState}); await expired.settle();
+ // Resume requires a current package in state.
+ serverState.package={id:1,status:'active',answered:2,total:4}; await expired.click('nav-operate'); await expired.click('resume'); await expired.click('like');
+ assert.equal(expired.animations.length,0); assert.equal(expired.element('home').hidden,false);
+ const browser=undoBrowser({review:true,loseResponse:false}); await browser.settle(); await browser.click('resume');
+ await browser.click('next'); await browser.click('previous');
+ const stage=browser.element('photo-stage'); stage.listeners.pointerdown({isPrimary:true,button:0,pointerId:1,clientX:410,clientY:0,target:{closest:()=>null}});stage.listeners.pointerup({pointerId:1,clientX:410,clientY:0});await browser.settle();
+ browser.events.keydown({key:'ArrowLeft',target:{tagName:'BODY'},preventDefault(){}});await browser.settle();
+ await browser.click('undo'); await browser.click('nav-explore'); await browser.click('like'); await browser.click('dislike');
+ browser.events.keydown({key:'l',target:{tagName:'BODY'},preventDefault(){}});await browser.settle();
+ assert.equal(browser.animations.length,0);
 });
 
 test('remaining counter uses Czech and English count grammar', () => {

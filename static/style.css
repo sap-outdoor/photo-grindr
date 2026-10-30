@@ -16,6 +16,11 @@
 
 button,input{border-color:#718795}.primary,.decision.like,.decision.dislike{border-color:currentColor}.photo-error button:focus-visible{outline-color:var(--lime)}
 
+/* A viewport-clipped, inert paper copy; never changes the judging image. */
+.photo-toss-layer{position:fixed;inset:0;overflow:hidden;pointer-events:none;z-index:20;contain:strict}
+.photo-toss-paper{position:absolute;box-sizing:content-box;border:5px solid #fff;border-bottom-width:12px;margin:-5px;box-shadow:0 8px 22px #0004;pointer-events:none}
+.photo-toss-paper img{display:block;width:100%;height:100%;object-fit:contain}
+
 /* Compact workspace: reserve space for controls; let the image absorb the rest. */
 h1{font-size:1.65rem;letter-spacing:-.035em;line-height:1.2;margin:0 0 16px}
 .site-header{min-height:64px;padding:8px max(24px,calc((100vw - 1240px)/2));gap:18px}

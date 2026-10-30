@@ -60,6 +60,20 @@ Primary review actions fit inside both tested viewports without scrolling. The s
 
 Baseline screenshots and after screenshots are stored only under Hermes scratch storage. Parent visually inspected desktop home and mobile review screenshots. After restart, the live localhost app was verified for the collapsed help, removed gallery Undo, new filter labels, absent edition badge, and unchanged 1,682-photo library total without creating test players or votes in live data.
 
+## Paper-photo decision motion
+
+Status: implemented and parent-verified. Localhost serves byte-identical updated JS/CSS; targeted independent review passed without blockers.
+
+- Successful Like/Dislike throws a translucent copy of the previous photo toward the selected side, with a small rotation, paper edge, and shadow.
+- Motion is feedback for a confirmed save, never a substitute for server confirmation. Failed/expired/conflicting requests do not produce a successful toss.
+- Edge taps, Previous/Next, Undo, and gallery actions do not throw photos.
+- The next pending photo and count may update immediately after a successful save; do not delay the API request or await decorative motion before enabling work.
+- The throwaway copy is hidden from assistive technology, has no duplicate ID, cannot intercept input, stays in a clipped viewport layer, and is removed after completion/cancellation or leaving review.
+- Respect prefers-reduced-motion and retain correct saving/navigation without animation support.
+- Verified in isolated real Chromium: successful right/left directions, delayed server confirmation, no toss on HTTP 503/409, portrait geometry, reduced motion, cancellation cleanup, last-photo completion, and no desktop/mobile overflow.
+- Actual effect: 250ms, mirrored ±10-degree rotation, opacity .85 to 0. It also applies consistently to Like/Dislike buttons and L/D shortcuts.
+- Parent reran 24 Python tests and 32 Node tests, JS syntax and whitespace checks. Mobile actions bottom remained 776.47px inside an 844px viewport. No page errors. Live event data was not used for destructive tests.
+
 ## Basis
 
 - Nielsen Norman Group, Aesthetic and Minimalist Design: https://www.nngroup.com/articles/aesthetic-minimalist-design/ — retain information serving the task and disclose secondary help on demand.
